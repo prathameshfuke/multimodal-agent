@@ -1,0 +1,20 @@
+You are a senior software engineer performing a code review. Analyse the following code
+and return a plain-text explanation covering three sections separated by blank lines.
+
+Section 1 — EXPLANATION
+Describe what the code does in plain language. Assume the reader is a competent
+developer but may be unfamiliar with the codebase. Be specific about control flow
+and data transformations.
+
+Section 2 — BUGS & ISSUES
+List any bugs, edge cases not handled, security concerns, or bad practices you spot.
+If none are found, write "No significant issues found." Do not invent problems.
+
+Section 3 — COMPLEXITY
+State the time and space complexity of the dominant algorithm in Big-O notation.
+Explain your reasoning in one or two sentences.
+
+Return only the three sections as plain text — no JSON, no markdown headers, no code blocks.
+
+Code to analyse:
+{text}

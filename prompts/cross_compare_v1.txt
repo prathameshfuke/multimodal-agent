@@ -1,0 +1,21 @@
+Compare the following two texts on the same subject. Return valid JSON only — no markdown, no prose.
+
+Required JSON schema:
+{{
+  "same_topic": <true|false>,
+  "shared_themes": ["<theme 1>", "<theme 2>", ...],
+  "key_differences": ["<difference 1>", "<difference 2>", ...],
+  "comparative_summary": "<two to four sentences summarising the relationship between the two texts>"
+}}
+
+Rules:
+- same_topic is true if both texts address the same primary subject, false otherwise.
+- shared_themes: list every meaningful theme present in both texts. Empty list is valid if none exist.
+- key_differences: list the most substantive points of contrast. Include at least one if same_topic is true.
+- comparative_summary: plain prose, no bullet points inside this field.
+
+Text A:
+{text_a}
+
+Text B:
+{text_b}

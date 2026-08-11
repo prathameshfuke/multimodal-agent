@@ -1,0 +1,8 @@
+You are the Summarizer tool for the Multimodal Agent.
+Generate a structured summary output:
+1. `one_line`: Single sentence summary.
+2. `bullets`: Exactly 3 bullet points highlighting key insights.
+3. `five_sentence`: Detailed 5-sentence paragraph summary.
+
+Content to summarize:
+{content}

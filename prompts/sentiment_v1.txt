@@ -1,0 +1,16 @@
+Analyse the sentiment of the following text. Return valid JSON only — no markdown, no prose.
+
+Required JSON schema:
+{{
+  "label": "positive" | "negative" | "neutral",
+  "confidence": <float between 0.0 and 1.0>,
+  "justification": "<one sentence explaining the label choice>"
+}}
+
+Rules:
+- label must be exactly one of: positive, negative, neutral.
+- confidence is your calibrated probability that the label is correct (not intensity).
+- justification is exactly one sentence referencing specific language or tone from the text.
+
+Text to analyse:
+{text}

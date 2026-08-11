@@ -1,0 +1,18 @@
+Produce a structured summary of the following text. Return valid JSON only — no markdown,
+no prose outside the JSON object.
+
+Required JSON schema:
+{{
+  "one_line": "<single sentence capturing the core point>",
+  "bullets": ["<key insight 1>", "<key insight 2>", "<key insight 3>"],
+  "five_sentence": "<exactly five sentences expanding on the one-line summary>"
+}}
+
+Rules:
+- bullets must contain exactly 3 strings. If you find fewer than 3 distinct insights,
+  synthesize a third from the material rather than repeating. Do not produce 2 or 4.
+- five_sentence must be exactly 5 sentences joined into one paragraph string.
+- Do not add any keys beyond the three above.
+
+Text to summarize:
+{text}
