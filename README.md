@@ -35,7 +35,7 @@ multimodal-agent/
 
 ### Local Setup
 
-1. **Create and activate a virtual environment (Python 3.11+)**:
+1. **Create and activate a virtual environment (Python 3.12.13)**:
    ```bash
    python -m venv venv
    # On Windows:

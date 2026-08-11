@@ -80,13 +80,13 @@ document.addEventListener('DOMContentLoaded', () => {
       item.className = 'file-item';
       
       const ext = file.name.split('.').pop().toLowerCase();
-      let icon = '📄';
-      if (['png', 'jpg', 'jpeg'].includes(ext)) icon = '🖼️';
-      if (['wav', 'mp3', 'm4a'].includes(ext)) icon = '🎙️';
+      let fileType = 'DOC';
+      if (['png', 'jpg', 'jpeg'].includes(ext)) fileType = 'IMG';
+      if (['wav', 'mp3', 'm4a'].includes(ext)) fileType = 'AUD';
 
       item.innerHTML = `
         <div class="file-item-info">
-          <span>${icon}</span>
+          <span class="file-type">${fileType}</span>
           <span class="file-name" title="${file.name}">${file.name}</span>
           <span class="file-size" style="color: var(--text-dim); font-size: 10px;">(${(file.size / 1024).toFixed(1)} KB)</span>
         </div>
@@ -255,7 +255,7 @@ document.addEventListener('DOMContentLoaded', () => {
       <div class="msg-card">
         <div class="clarify-banner">
           <div class="clarify-header">
-            <span>❓ Clarification Required</span>
+            <span>Clarification Required</span>
           </div>
           <p class="clarify-question">${escapeHtml(data.question)}</p>
         </div>
@@ -352,7 +352,7 @@ document.addEventListener('DOMContentLoaded', () => {
     return `
       <div class="trace-drawer">
         <div class="trace-drawer-header">
-          <span>⚙️ Plan & Execution Trace (${trace.length} step${trace.length > 1 ? 's' : ''})</span>
+          <span>Plan &amp; Execution Trace (${trace.length} step${trace.length > 1 ? 's' : ''})</span>
           <span class="drawer-chevron">▼</span>
         </div>
         <div class="trace-drawer-body hidden">
@@ -379,7 +379,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     let fileBadgeHtml = '';
     if (files.length > 0) {
-      fileBadgeHtml = `<div style="font-size: 11px; opacity: 0.8; margin-bottom: 4px;">📎 Uploaded: ${files.map(f => escapeHtml(f.name)).join(', ')}</div>`;
+      fileBadgeHtml = `<div class="uploaded-files">UPLOADED: ${files.map(f => escapeHtml(f.name)).join(', ')}</div>`;
     }
 
     card.innerHTML = `
@@ -396,9 +396,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const card = document.createElement('div');
     card.className = 'chat-msg chat-msg-agent';
     card.innerHTML = `
-      <div class="msg-card" style="border-color: var(--accent-danger);">
-        <div style="color: var(--accent-danger); font-weight: 600;">⚠️ Error</div>
-        <p style="font-size: 13px; color: var(--text-main);">${escapeHtml(errorText)}</p>
+      <div class="msg-card error-card">
+        <div class="error-title">Error</div>
+        <p class="error-message">${escapeHtml(errorText)}</p>
       </div>
     `;
     chatThread.appendChild(card);

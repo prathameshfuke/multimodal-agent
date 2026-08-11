@@ -6,6 +6,7 @@ description and args_schema fields here are the canonical specification — not 
 from signatures. See decisions.md Decision 7 for the rationale.
 """
 
+import os
 import time
 from typing import Any
 
@@ -16,6 +17,18 @@ from app.tools.youtube_transcript import fetch_youtube_transcript
 from app.tools.cross_compare import cross_compare
 from app.tools.conversational import conversational_answer
 from app.logging_utils import log_event
+
+
+def get_default_gemini_client() -> Any:
+    """Construct a default genai.Client if an API key is present in environment."""
+    if os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"):
+        try:
+            from google import genai
+            return genai.Client()
+        except Exception:
+            return None
+    return None
+
 
 TOOL_REGISTRY: dict[str, dict] = {
     "summarize": {
@@ -112,12 +125,16 @@ async def dispatch_tool(
     fn = TOOL_REGISTRY[tool_name]["fn"]
     started = time.monotonic()
 
+    if gemini_client is None and tool_name != "fetch_youtube_transcript":
+        gemini_client = get_default_gemini_client()
+
     try:
         # Tools that don't need a gemini_client (fetch_youtube_transcript)
         if tool_name == "fetch_youtube_transcript":
             result = await fn(**args)
         else:
             result = await fn(**args, gemini_client=gemini_client)
+
         log_event(thread_id=thread_id, node="tool_dispatch", status="success", latency_ms=int((time.monotonic() - started) * 1000), tool=tool_name)
         return result
     except Exception as exc:

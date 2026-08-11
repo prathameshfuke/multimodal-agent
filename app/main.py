@@ -14,6 +14,10 @@ import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -265,7 +269,12 @@ async def get_trace(thread_id: str):
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy"}
+    # Deliberately avoid a Gemini network request: Render only needs a cheap
+    # liveness/configuration signal, not an API quota-consuming readiness call.
+    gemini_configured = bool(
+        os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+    )
+    return {"status": "healthy", "gemini_configured": gemini_configured}
 
 
 # Mount static files at root (html=True serves index.html at /)

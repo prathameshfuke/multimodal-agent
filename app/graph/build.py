@@ -10,6 +10,9 @@ The two routing functions are named, testable callables — not inline lambdas.
 MemorySaver enables clarify-pause → resume within the same session thread.
 """
 
+from functools import partial
+from typing import Any
+
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
 
@@ -45,17 +48,19 @@ def route_after_exec(state: AgentState) -> str:
 # ---------------------------------------------------------------------------
 
 
-def build_graph():
+def build_graph(*, gemini_client: Any = None):
     """
     Compile and return the runnable StateGraph with MemorySaver checkpointer.
     Call once at app startup; reuse the returned object for all requests.
     """
     graph = StateGraph(AgentState)
 
-    graph.add_node("extract", extract_node)
+    # LangGraph invokes nodes with state only, so bind the application-scoped
+    # client here rather than allowing each node to receive None at runtime.
+    graph.add_node("extract", partial(extract_node, gemini_client=gemini_client))
     graph.add_node("fuse_context", fuse_node)
-    graph.add_node("plan", planner_node)
-    graph.add_node("execute_tools", executor_node)
+    graph.add_node("plan", partial(planner_node, gemini_client=gemini_client))
+    graph.add_node("execute_tools", partial(executor_node, gemini_client=gemini_client))
     graph.add_node("format_output", formatter_node)
 
     graph.set_entry_point("extract")

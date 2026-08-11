@@ -23,6 +23,7 @@ async def cross_compare(text_a: str, text_b: str, gemini_client: Any) -> dict:
                 res = gemini_client.generate_content(prompt)
                 raw = (res.text if hasattr(res, "text") else str(res)).strip()
 
+
             if raw.startswith("```"):
                 raw = "\n".join(raw.split("\n")[1:]).rstrip("`").strip()
 

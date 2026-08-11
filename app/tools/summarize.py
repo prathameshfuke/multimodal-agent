@@ -40,6 +40,7 @@ async def summarize(text: str, gemini_client: Any) -> SummaryOutput:
             else:
                 raw = _call_gemini(prompt, gemini_client)
 
+
             # Strip markdown code fences if present
             if raw.startswith("```"):
                 raw = "\n".join(raw.split("\n")[1:])

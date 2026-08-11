@@ -25,6 +25,7 @@ async def sentiment(text: str, gemini_client: Any) -> SentimentOutput:
                 res = gemini_client.generate_content(prompt)
                 raw = res.text if hasattr(res, "text") else str(res)
 
+
             if raw.startswith("```"):
                 raw = "\n".join(raw.split("\n")[1:]).rstrip("`").strip()
 
