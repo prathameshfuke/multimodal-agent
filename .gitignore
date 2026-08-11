@@ -1,7 +1,31 @@
+# Virtual environment
 .venv/
+venv/
+ENV/
+
+# Python cache & build outputs
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
 .pytest_cache/
 .pytest_tmp/
 .coverage
-__pycache__/
-*.pyc
+htmlcov/
+*.egg-info/
+dist/
+build/
+
+# Environment variables & secrets (NEVER COMMIT)
 .env
+.env.*
+!.env.example
+*.key
+*.pem
+*.secret
+
+# Temp storage & OS metadata
+/tmp/
+tesseract/
+.DS_Store
+Thumbs.db

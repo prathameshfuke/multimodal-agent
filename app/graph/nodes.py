@@ -16,6 +16,7 @@ from app.schemas.output import FinalOutput, SentimentOutput, SummaryOutput
 from app.schemas.plan import Plan, ToolCall
 from app.schemas.state import AgentState
 from app.schemas.trace import TraceEvent
+from app.logging_utils import log_event
 from app.tools.registry import (
     dispatch_tool,
     get_default_gemini_client,

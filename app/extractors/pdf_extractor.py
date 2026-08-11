@@ -3,8 +3,14 @@ from typing import Any
 import pdfplumber
 import pytesseract
 from PIL import Image
+from pathlib import Path
 
 from app.schemas.extraction import ExtractionResult
+
+# Auto-detect local project Tesseract binary if present in <project>/tesseract/
+_PROJECT_TESSERACT = Path(__file__).resolve().parent.parent.parent / "tesseract" / "tesseract.exe"
+if _PROJECT_TESSERACT.exists():
+    pytesseract.pytesseract.tesseract_cmd = str(_PROJECT_TESSERACT)
 
 
 async def _call_gemini_vision_with_retry(
