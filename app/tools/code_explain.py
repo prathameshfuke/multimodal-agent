@@ -27,7 +27,6 @@ async def code_explain(text: str, gemini_client: Any) -> str:
                 res = gemini_client.generate_content(prompt)
                 return (res.text if hasattr(res, "text") else str(res)).strip()
 
-
         except Exception:
             if attempt == 1:
                 return "Code explanation failed after one retry."

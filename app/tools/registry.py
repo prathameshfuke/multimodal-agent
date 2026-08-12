@@ -104,15 +104,49 @@ def get_tool_schema_for_planner() -> list[dict]:
     ]
 
 
+from app.schemas.output import SentimentOutput, SummaryOutput
+
+
+def _is_fallback_result(tool_name: str, result: Any) -> bool:
+    if result is None:
+        return True
+    if tool_name == "summarize" and isinstance(result, SummaryOutput):
+        return (
+            result.one_line == "Summary unavailable."
+            or "failed after one retry" in result.five_sentence
+        )
+    if tool_name == "sentiment" and isinstance(result, SentimentOutput):
+        return (
+            result.confidence == 0.0
+            and "failed after one retry" in result.justification
+        )
+    if tool_name == "code_explain" and isinstance(result, str):
+        return "failed after one retry" in result
+    if tool_name == "cross_compare" and isinstance(result, dict):
+        return "failed after one retry" in result.get("comparative_summary", "")
+    if tool_name == "conversational_answer" and isinstance(result, str):
+        return "failed after one retry" in result
+    if tool_name == "fetch_youtube_transcript" and isinstance(result, str):
+        return (
+            result.startswith("Could not extract")
+            or result.startswith("Could not fetch")
+            or "Transcripts are disabled" in result
+            or "No transcript found" in result
+            or "Video unavailable" in result
+        )
+    return False
+
+
 async def dispatch_tool(
     tool_name: str,
     args: dict,
     gemini_client: Any = None,
     *,
     thread_id: str = "unknown",
-) -> Any:
+) -> tuple[Any, bool]:
     """Central dispatch. Raises KeyError for unknown tool names so executor_node
     can record a clean failure rather than silently producing None.
+    Returns (result, succeeded: bool).
     """
     if tool_name not in TOOL_REGISTRY:
         log_event(
@@ -131,14 +165,20 @@ async def dispatch_tool(
         else:
             result = await fn(**args)
 
+        succeeded = not _is_fallback_result(tool_name, result)
+        latency = int((time.monotonic() - started) * 1000)
+
         log_event(
-            thread_id=thread_id, node="tool_dispatch", status="success",
-            latency_ms=int((time.monotonic() - started) * 1000), tool=tool_name,
+            thread_id=thread_id, node="tool_dispatch",
+            status="success" if succeeded else "partial",
+            latency_ms=latency, tool=tool_name,
         )
-        return result
+        return result, succeeded
+
     except Exception as exc:
+        latency = int((time.monotonic() - started) * 1000)
         log_event(
             thread_id=thread_id, node="tool_dispatch", status="error",
-            latency_ms=int((time.monotonic() - started) * 1000), tool=tool_name, error=str(exc),
+            latency_ms=latency, tool=tool_name, error=str(exc),
         )
         raise

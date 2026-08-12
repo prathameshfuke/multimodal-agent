@@ -8,6 +8,8 @@ A production-ready, LangGraph-orchestrated multimodal agentic assistant built on
 
 The pipeline is a five-node LangGraph `StateGraph` compiled against a `MemorySaver` checkpointer. All tool dispatch, retry, and conditional branching logic lives in plain Python inside the nodes — LangGraph is used strictly as a coarse state-machine scheduler (see Decision 1).
 
+![Request Lifecycle Flowchart](flowdiagrams/request_lifecycle.png)
+
 ```mermaid
 graph LR
     A[HTTP Request] --> B[extract_node]
@@ -18,6 +20,7 @@ graph LR
     F --> G[formatter_node]
     G --> H[HTTP Response]
 ```
+
 
 **Execution flow in detail:**
 
@@ -32,6 +35,13 @@ graph LR
 ### Clarify-Pause / Resume Path
 
 When `planner_node` sets `status=awaiting_clarification`, the graph reaches `END` and the `/session` endpoint returns a 200 with `status=awaiting_clarification` and the clarifying question. The client sends the user's answer to `/reply/{thread_id}`, which calls `graph.aupdate_state(config, updates, as_node="fuse_context")` then `graph.ainvoke(None, config=config)` to resume from `planner_node` without re-executing `extract_node`. This is empirically verified in `test_real_graph_resume_does_not_re_extract` (Decision 11).
+
+### Multimodal Extraction & Fallback Chain
+
+Each uploaded file modality passes through a fallback extraction pipeline to guarantee robust text recovery before context fusion.
+
+![Extraction Fallback Chain Diagram](flowdiagrams/extraction_fallback_chain.png)
+
 
 ---
 
@@ -147,6 +157,13 @@ Six tools are registered in `app/tools/registry.py`. The `needs_gemini` flag con
 | `conversational_answer` | `query: str`, `context: str` | `str` (grounded answer) | Yes |
 
 Every Gemini-dependent tool makes up to 2 attempts (1 Reflexion retry) and returns a typed fallback value on failure — the formatter never receives `None` (Decision 8).
+
+### Tool Execution & Reflexion Retry Flow
+
+Tools execute sequentially with error feedback fed back into tool arguments on retry attempts.
+
+![Reflexion Retry Error Handling Flow Diagram](flowdiagrams/retry_error_flow.png)
+
 
 ---
 

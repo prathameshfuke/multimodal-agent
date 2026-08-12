@@ -1,0 +1,96 @@
+<svg viewBox="0 0 980 620" xmlns="http://www.w3.org/2000/svg" font-family="JetBrains Mono, IBM Plex Mono, monospace">
+  <rect width="980" height="620" fill="#0d0f12"/>
+  <style>
+    .actor { fill:#e8e6e1; font-size:13px; font-weight:600; }
+    .life { stroke:#3a3d42; stroke-width:1; }
+    .msg { stroke:#6b7280; stroke-width:1.2; fill:none; }
+    .msgtxt { fill:#c9c7c1; font-size:11px; }
+    .box { fill:#161a1f; stroke:#3a3d42; stroke-width:1; }
+    .note { fill:#8a8d92; font-size:10px; }
+    .accent { stroke:#5b8def; }
+    .accenttxt { fill:#8fb2f5; font-size:11px; }
+  </style>
+
+  <!-- Lifelines -->
+  <g>
+    <rect x="40" y="20" width="120" height="30" class="box"/>
+    <text x="100" y="40" text-anchor="middle" class="actor">Browser</text>
+    <line x1="100" y1="50" x2="100" y2="580" class="life"/>
+
+    <rect x="260" y="20" width="140" height="30" class="box"/>
+    <text x="330" y="40" text-anchor="middle" class="actor">FastAPI /session</text>
+    <line x1="330" y1="50" x2="330" y2="580" class="life"/>
+
+    <rect x="500" y="20" width="140" height="30" class="box"/>
+    <text x="570" y="40" text-anchor="middle" class="actor">LangGraph</text>
+    <line x1="570" y1="50" x2="570" y2="580" class="life"/>
+
+    <rect x="740" y="20" width="180" height="30" class="box"/>
+    <text x="830" y="40" text-anchor="middle" class="actor">Gemini / Tools</text>
+    <line x1="830" y1="50" x2="830" y2="580" class="life"/>
+  </g>
+
+  <!-- Upload -->
+  <line x1="100" y1="80" x2="330" y2="80" class="msg" marker-end="url(#arrow)"/>
+  <text x="115" y="74" class="msgtxt">POST /session (files + query)</text>
+
+  <line x1="330" y1="110" x2="570" y2="110" class="msg" marker-end="url(#arrow)"/>
+  <text x="345" y="104" class="msgtxt">ainvoke(AgentState)</text>
+
+  <line x1="570" y1="140" x2="830" y2="140" class="msg" marker-end="url(#arrow)"/>
+  <text x="585" y="134" class="msgtxt">extract_node → per-file extractors</text>
+
+  <line x1="830" y1="170" x2="570" y2="170" class="msg" marker-end="url(#arrow)"/>
+  <text x="585" y="164" class="msgtxt">ExtractionResult[]</text>
+
+  <text x="585" y="196" class="note">fuse_node: merge text, regex-scan detected_urls</text>
+
+  <line x1="570" y1="220" x2="830" y2="220" class="msg" marker-end="url(#arrow)"/>
+  <text x="585" y="214" class="msgtxt">planner_node → structured-output call</text>
+
+  <line x1="830" y1="250" x2="570" y2="250" class="msg" marker-end="url(#arrow)"/>
+  <text x="585" y="244" class="msgtxt">Plan{steps} or Plan{clarify_question}</text>
+
+  <!-- Branch box -->
+  <rect x="500" y="270" width="440" height="50" fill="none" stroke="#5b8def" stroke-dasharray="4 3"/>
+  <text x="520" y="288" class="accenttxt">route_after_plan(state)</text>
+  <text x="520" y="305" class="note">"clarify" → END   |   "execute" → executor_node</text>
+
+  <!-- Clarify path -->
+  <line x1="570" y1="340" x2="330" y2="340" class="msg" marker-end="url(#arrow)"/>
+  <text x="360" y="334" class="msgtxt">status=awaiting_clarification (checkpointed)</text>
+
+  <line x1="330" y1="365" x2="100" y2="365" class="msg" marker-end="url(#arrow)"/>
+  <text x="115" y="359" class="msgtxt">200 { status, question }</text>
+
+  <text x="115" y="390" class="note">user reads question, types reply</text>
+
+  <line x1="100" y1="415" x2="330" y2="415" class="msg" marker-end="url(#arrow)"/>
+  <text x="115" y="409" class="msgtxt">POST /reply/{thread_id}</text>
+
+  <line x1="330" y1="440" x2="570" y2="440" class="msg accent" marker-end="url(#arrowaccent)"/>
+  <text x="345" y="434" class="accenttxt">aupdate_state(as_node="fuse_context") + ainvoke(None)</text>
+  <text x="345" y="454" class="note">resumes at planner_node — extract_node NOT re-run (Decision 11)</text>
+
+  <!-- Execute path -->
+  <line x1="570" y1="480" x2="830" y2="480" class="msg" marker-end="url(#arrow)"/>
+  <text x="585" y="474" class="msgtxt">executor_node → dispatch_tool() per step</text>
+
+  <line x1="830" y1="505" x2="570" y2="505" class="msg" marker-end="url(#arrow)"/>
+  <text x="585" y="499" class="msgtxt">tool_outputs + TraceEvent[]</text>
+
+  <text x="585" y="525" class="note">formatter_node → FinalOutput</text>
+
+  <line x1="570" y1="548" x2="330" y2="548" class="msg" marker-end="url(#arrow)"/>
+  <line x1="330" y1="568" x2="100" y2="568" class="msg" marker-end="url(#arrow)"/>
+  <text x="115" y="562" class="msgtxt">200 { status: done, output, trace }</text>
+
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="#6b7280"/>
+    </marker>
+    <marker id="arrowaccent" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="#5b8def"/>
+    </marker>
+  </defs>
+</svg>

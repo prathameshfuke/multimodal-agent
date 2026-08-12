@@ -1,0 +1,71 @@
+<svg viewBox="0 0 760 620" xmlns="http://www.w3.org/2000/svg" font-family="JetBrains Mono, IBM Plex Mono, monospace">
+  <rect width="760" height="620" fill="#0d0f12"/>
+  <style>
+    .title { fill:#e8e6e1; font-size:14px; font-weight:600; }
+    .node { fill:#161a1f; stroke:#3a3d42; stroke-width:1; }
+    .decision { fill:#161a1f; stroke:#5b8def; stroke-width:1.2; }
+    .terminal { fill:#161a1f; stroke:#5c8a5c; stroke-width:1.2; }
+    .fail { fill:#161a1f; stroke:#b5654a; stroke-width:1.2; }
+    .label { fill:#c9c7c1; font-size:11px; }
+    .small { fill:#8a8d92; font-size:9.5px; }
+    .edgelabel { fill:#e0a458; font-size:10px; font-style:italic; }
+    .arrow { stroke:#6b7280; stroke-width:1.3; fill:none; marker-end:url(#a3); }
+  </style>
+  <defs>
+    <marker id="a3" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="#6b7280"/>
+    </marker>
+  </defs>
+
+  <text x="30" y="30" class="title">executor_node — Reflexion Retry &amp; Partial-Result Flow (Decision 8)</text>
+
+  <rect x="280" y="55" width="200" height="45" rx="4" class="node"/>
+  <text x="380" y="82" text-anchor="middle" class="label">dispatch_tool(step)</text>
+
+  <line x1="380" y1="100" x2="380" y2="135" class="arrow"/>
+
+  <polygon points="380,135 460,175 380,215 300,175" class="decision"/>
+  <text x="380" y="172" text-anchor="middle" class="label">tool call</text>
+  <text x="380" y="188" text-anchor="middle" class="label">succeeds?</text>
+
+  <line x1="460" y1="175" x2="590" y2="175" class="arrow"/>
+  <text x="480" y="165" class="edgelabel">yes</text>
+  <rect x="590" y="150" width="140" height="50" rx="4" class="terminal"/>
+  <text x="660" y="172" text-anchor="middle" class="label">TraceEvent</text>
+  <text x="660" y="188" text-anchor="middle" class="label">status=success</text>
+
+  <line x1="380" y1="215" x2="380" y2="255" class="arrow"/>
+  <text x="392" y="240" class="edgelabel">no</text>
+
+  <rect x="230" y="255" width="300" height="55" rx="4" class="node"/>
+  <text x="380" y="277" text-anchor="middle" class="label">1 Reflexion retry</text>
+  <text x="380" y="295" text-anchor="middle" class="small">error message injected as _retry_error_context</text>
+
+  <line x1="380" y1="310" x2="380" y2="345" class="arrow"/>
+
+  <polygon points="380,345 460,385 380,425 300,385" class="decision"/>
+  <text x="380" y="382" text-anchor="middle" class="label">retry</text>
+  <text x="380" y="398" text-anchor="middle" class="label">succeeds?</text>
+
+  <line x1="460" y1="385" x2="590" y2="385" class="arrow"/>
+  <text x="480" y="375" class="edgelabel">yes</text>
+  <rect x="590" y="360" width="140" height="50" rx="4" class="terminal"/>
+  <text x="660" y="382" text-anchor="middle" class="label">TraceEvent</text>
+  <text x="660" y="398" text-anchor="middle" class="label">status=retried</text>
+
+  <line x1="380" y1="425" x2="380" y2="460" class="arrow"/>
+  <text x="392" y="446" class="edgelabel">no</text>
+
+  <rect x="230" y="460" width="300" height="55" rx="4" class="fail"/>
+  <text x="380" y="482" text-anchor="middle" class="label">TraceEvent status=partial</text>
+  <text x="380" y="498" text-anchor="middle" class="small">typed fallback value returned — never None, never raised</text>
+
+  <line x1="380" y1="515" x2="380" y2="550" class="arrow"/>
+
+  <rect x="200" y="550" width="360" height="45" rx="4" class="node"/>
+  <text x="380" y="577" text-anchor="middle" class="label">continue to next plan step (execution not aborted)</text>
+
+  <text x="30" y="560" class="small">Why cap at 1 retry, not 0 or 3+:</text>
+  <text x="30" y="577" class="small">Gemini free tier ~15 RPM; a 3-retry cap on a 6-step plan risks</text>
+  <text x="30" y="592" class="small">exceeding quota mid-demo. See Decision 8 for full reasoning.</text>
+</svg>

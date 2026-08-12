@@ -23,6 +23,8 @@ are unclear. Examples:
   • User uploads a PDF that contains URLs but gives no instruction about those URLs
     → plan: [summarize] — do NOT ask about the URLs unless the user explicitly
     references them. The presence of incidental data does not make the primary task ambiguous.
+  • User uploads a PDF containing a YouTube URL and requests to summarize, explain, or work with the video content
+    → plan: [fetch_youtube_transcript(url="..."), summarize] — if a detected_urls entry is a YouTube link and the query's intent involves that content (summarize, explain, what's it about, etc.), you MUST plan fetch_youtube_transcript as a step before summarizing or answering, NOT conversational_answer.
 
 Ask (return clarify_question) only when two or more equally plausible primary tasks
 exist AND choosing the wrong one would produce a meaningless result. Examples:

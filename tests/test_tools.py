@@ -204,7 +204,8 @@ def test_dispatch_tool_unknown_raises_key_error():
 
 def test_dispatch_tool_youtube_no_gemini_client():
     # Should work without a gemini_client since fetch_youtube_transcript needs none
-    result = asyncio.run(
+    result, succeeded = asyncio.run(
         dispatch_tool("fetch_youtube_transcript", {"url": "https://example.com/bad"})
     )
     assert isinstance(result, str)
+    assert succeeded is False

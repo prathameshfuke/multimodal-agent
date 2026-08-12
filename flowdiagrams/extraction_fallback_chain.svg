@@ -1,0 +1,79 @@
+<svg viewBox="0 0 940 480" xmlns="http://www.w3.org/2000/svg" font-family="JetBrains Mono, IBM Plex Mono, monospace">
+  <rect width="940" height="480" fill="#0d0f12"/>
+  <style>
+    .title { fill:#e8e6e1; font-size:14px; font-weight:600; }
+    .tier { fill:#161a1f; stroke:#3a3d42; stroke-width:1; }
+    .tierlabel { fill:#c9c7c1; font-size:12px; font-weight:600; }
+    .tierdesc { fill:#8a8d92; font-size:10px; }
+    .arrow { stroke:#5b8def; stroke-width:1.5; fill:none; marker-end:url(#a2); }
+    .condlabel { fill:#e0a458; font-size:10px; font-style:italic; }
+    .colhead { fill:#8fb2f5; font-size:12px; font-weight:600; }
+  </style>
+  <defs>
+    <marker id="a2" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="#5b8def"/>
+    </marker>
+  </defs>
+
+  <text x="30" y="30" class="title">Extraction Fallback Chain — per modality, per Decision 6</text>
+
+  <!-- PDF column -->
+  <text x="60" y="65" class="colhead">PDF</text>
+  <rect x="30" y="80" width="220" height="55" class="tier"/>
+  <text x="45" y="102" class="tierlabel">Tier 1: pdfplumber</text>
+  <text x="45" y="118" class="tierdesc">per-page text extraction, digital text</text>
+
+  <line x1="140" y1="135" x2="140" y2="170" class="arrow"/>
+  <text x="150" y="155" class="condlabel">page near-empty / scanned</text>
+
+  <rect x="30" y="170" width="220" height="55" class="tier"/>
+  <text x="45" y="192" class="tierlabel">Tier 2: pytesseract</text>
+  <text x="45" y="208" class="tierdesc">rasterize page, local OCR</text>
+
+  <line x1="140" y1="225" x2="140" y2="260" class="arrow"/>
+  <text x="150" y="245" class="condlabel">confidence &lt; 60% or text &lt; 20 chars</text>
+
+  <rect x="30" y="260" width="220" height="55" class="tier"/>
+  <text x="45" y="282" class="tierlabel">Tier 3: Gemini vision</text>
+  <text x="45" y="298" class="tierdesc">1 retry, then degraded result + warning</text>
+
+  <!-- Image column -->
+  <text x="360" y="65" class="colhead">IMAGE</text>
+  <rect x="330" y="80" width="220" height="55" class="tier"/>
+  <text x="345" y="102" class="tierlabel">Tier 1: pytesseract</text>
+  <text x="345" y="118" class="tierdesc">local OCR on full image</text>
+
+  <line x1="440" y1="135" x2="440" y2="170" class="arrow"/>
+  <text x="450" y="155" class="condlabel">confidence &lt; 60% or text &lt; 20 chars</text>
+
+  <rect x="330" y="170" width="220" height="55" class="tier"/>
+  <text x="345" y="192" class="tierlabel">Tier 2: Gemini vision</text>
+  <text x="345" y="208" class="tierdesc">1 retry, then degraded result + warning</text>
+
+  <!-- Audio column -->
+  <text x="660" y="65" class="colhead">AUDIO</text>
+  <rect x="630" y="80" width="220" height="55" class="tier"/>
+  <text x="645" y="102" class="tierlabel">Tier 1: faster-whisper</text>
+  <text x="645" y="118" class="tierdesc">base model, int8, local ASR</text>
+
+  <line x1="740" y1="135" x2="740" y2="170" class="arrow"/>
+  <text x="750" y="155" class="condlabel">always (surface cleanup)</text>
+
+  <rect x="630" y="170" width="220" height="55" class="tier"/>
+  <text x="645" y="192" class="tierlabel">Tier 2: Gemini cleanup pass</text>
+  <text x="645" y="208" class="tierdesc">fixes fillers/punctuation only — meaning frozen</text>
+
+  <line x1="740" y1="225" x2="740" y2="260" class="arrow"/>
+  <text x="750" y="245" class="condlabel">GEMINI_API_KEY absent</text>
+
+  <rect x="630" y="260" width="220" height="55" class="tier"/>
+  <text x="645" y="282" class="tierlabel">Fallback: raw transcript</text>
+  <text x="645" y="298" class="tierdesc">low_confidence=True, cleanup skipped</text>
+
+  <!-- Footer note -->
+  <rect x="30" y="360" width="880" height="90" class="tier"/>
+  <text x="50" y="385" class="tierlabel">Every tier boundary is logged as a warning on ExtractionResult, not silent.</text>
+  <text x="50" y="405" class="tierdesc">Per-page (PDF) / per-file (image, audio) evaluation — never escalates a whole document</text>
+  <text x="50" y="420" class="tierdesc">to the most expensive tier just because one page or one file needed it (Decision 6).</text>
+  <text x="50" y="438" class="tierdesc">All Gemini-dependent tiers: exactly 1 retry, then a typed degraded result — never None, never a crash (Decision 8).</text>
+</svg>

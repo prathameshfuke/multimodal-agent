@@ -305,9 +305,16 @@ async def executor_node(
 
         for attempt in range(2):
             try:
-                step_output = await dispatch_tool(
+                res = await dispatch_tool(
                     step.tool_name, step.args, client, thread_id=thread_id
                 )
+                if isinstance(res, tuple) and len(res) == 2 and isinstance(res[1], bool):
+                    step_output, succeeded = res
+                else:
+                    step_output, succeeded = res, True
+
+                if not succeeded:
+                    step_status = "partial"
                 break
             except Exception as exc:
                 if attempt == 0:
@@ -317,13 +324,14 @@ async def executor_node(
                     step_status = "partial"
                     step_output = f"Tool '{step.tool_name}' failed after one retry: {exc}"
 
+        latency = int((time.monotonic() - t0) * 1000)
         trace.append(
             TraceEvent(
                 step_index=len(trace),
                 tool_name=step.tool_name,
                 input_summary=f"{step.reason} | args: {list(step.args.keys())}",
                 output_summary=str(step_output)[:200] if step_output is not None else "No output",
-                latency_ms=int((time.monotonic() - t0) * 1000),
+                latency_ms=latency,
                 status=step_status,
             )
         )
@@ -356,26 +364,37 @@ def _enforce_three_bullets(bullets: list[str]) -> list[str]:
     return bullets
 
 
-def _derive_task_type(plan: Plan | None) -> str:
-    if plan and plan.steps:
-        return plan.steps[0].tool_name
-    return "conversational"
+def _derive_task_type_and_output(
+    plan: Plan | None, tool_outputs: dict
+) -> tuple[str, Any]:
+    """Derive task_type from the final tool in the plan (or the tool whose output
+    actually becomes the primary FinalOutput content) and return (task_type, primary_output).
+    """
+    if not plan or not plan.steps:
+        primary = next((v for v in tool_outputs.values() if v is not None), None)
+        return "conversational", primary
+
+    # Find the output from the last executed step in plan.steps
+    last_step_idx = len(plan.steps) - 1
+    for idx in range(last_step_idx, -1, -1):
+        if idx in tool_outputs and tool_outputs[idx] is not None:
+            step_tool_name = plan.steps[idx].tool_name
+            return step_tool_name, tool_outputs[idx]
+
+    return plan.steps[-1].tool_name, None
 
 
 async def formatter_node(state: AgentState) -> AgentState:
     """Shape the raw tool_outputs dict into a validated FinalOutput.
 
-    Uses the first non-None tool output. The task_type is derived from the
-    first plan step's tool_name so the UI can select the right display card.
+    Uses the output and tool_name from the last executed plan step so task_type
+    matches the primary content output.
     """
     started = time.monotonic()
     plan: Plan | None = state.get("plan")
     tool_outputs: dict = state.get("tool_outputs", {})
-    task_type = _derive_task_type(plan)
 
-    primary_output = next(
-        (v for v in tool_outputs.values() if v is not None), None
-    )
+    task_type, primary_output = _derive_task_type_and_output(plan, tool_outputs)
 
     summary: SummaryOutput | None = None
     sentiment_out: SentimentOutput | None = None

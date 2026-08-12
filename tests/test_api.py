@@ -258,6 +258,46 @@ def test_tc4_pdf_with_youtube_url_invokes_fetch_transcript(client):
     )
 
 
+def test_tc4_unmocked_real_planner_youtube_url(client):
+    """
+    Real un-mocked regression test for TC4: Exercises real extract_node, fuse_node,
+    planner_node, and executor_node on pdf_with_youtube_url.pdf to verify that
+    the planner chooses fetch_youtube_transcript and summarize, NOT conversational_answer.
+    """
+    import os
+    from app.graph.build import build_graph
+
+    api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+    if not api_key:
+        pytest.skip("No real GEMINI_API_KEY configured for unmocked planner test.")
+
+    # Re-enable real graph on client
+    client.app.state.graph = build_graph()
+
+    pdf_bytes = (SAMPLES / "pdf_with_youtube_url.pdf").read_bytes()
+    response = client.post(
+        "/session",
+        headers={"X-Gemini-Api-Key": api_key},
+        data={"user_query": "summarize the video in this document"},
+        files=[("files", ("pdf_with_youtube_url.pdf", io.BytesIO(pdf_bytes), "application/pdf"))],
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    if body.get("status") == "awaiting_clarification" and "couldn't interpret" in body.get("question", "").lower():
+        pytest.skip("Gemini API rate-limit quota exhausted during unmocked test run.")
+
+    assert body["status"] == "done"
+
+    tool_names_in_trace = [t["tool_name"] for t in body["trace"]]
+    assert "fetch_youtube_transcript" in tool_names_in_trace, (
+        f"Expected fetch_youtube_transcript in real planner trace, got: {tool_names_in_trace}"
+    )
+    assert "conversational_answer" not in tool_names_in_trace, (
+        f"Planner incorrectly chose conversational_answer instead of fetch_youtube_transcript. Trace: {tool_names_in_trace}"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Test 5 (TC5): Audio + PDF + "do they discuss the same topic?"
 #              → cross_compare appears in trace

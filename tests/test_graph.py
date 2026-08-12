@@ -249,3 +249,90 @@ def test_tool_outputs_survives_checkpointer_round_trip():
     assert restored_outputs == original_outputs, (
         f"tool_outputs changed after checkpoint round-trip: {restored_outputs!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Multi-step Fallback Status Honesty & Task Type Derivation
+# ---------------------------------------------------------------------------
+
+def test_multistep_plan_failed_final_step_status_and_task_type():
+    """
+    Regression test: For a multi-step plan [fetch_youtube_transcript, summarize]
+    where the final step fails and returns a fallback value:
+      1. trace step status MUST be 'partial' (not 'success').
+      2. formatter_node task_type MUST be 'summarize' (the last step, not step 0).
+      3. final_output.summary MUST be populated from the summary step fallback object.
+    """
+    from app.graph.nodes import executor_node
+    from app.schemas.output import SummaryOutput
+
+    plan = Plan(
+        steps=[
+            ToolCall(tool_name="fetch_youtube_transcript", args={"url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"}, reason="Fetch"),
+            ToolCall(tool_name="summarize", args={"text": "video text"}, reason="Summarize"),
+        ]
+    )
+    
+    # Mock client that raises exception to trigger fallback in summarize
+    class FailingGeminiClient:
+        def generate_content(self, _prompt):
+            raise RuntimeError("API limit exceeded")
+
+    state = _base_state(plan=plan)
+
+    # 1. Run executor_node with mock YouTube API return and failing Gemini client
+    from unittest.mock import patch
+    with patch("youtube_transcript_api.YouTubeTranscriptApi") as mock_yt:
+        mock_instance = mock_yt.return_value
+        mock_snippet = type("Snippet", (), {"text": "Never gonna give you up"})()
+        mock_instance.fetch.return_value = [mock_snippet]
+
+        exec_state = asyncio.run(executor_node(state, gemini_client=FailingGeminiClient()))
+
+    trace = exec_state["trace"]
+    assert len(trace) == 2
+    assert trace[0].tool_name == "fetch_youtube_transcript"
+    assert trace[0].status == "success"
+
+    # Crucial assertion 1: Step 1 (summarize fallback) MUST be 'partial', NOT 'success'
+    assert trace[1].tool_name == "summarize"
+    assert trace[1].status == "partial", f"Expected trace[1].status='partial', got '{trace[1].status}'"
+
+    # 2. Run formatter_node
+    formatted_state = asyncio.run(formatter_node(exec_state))
+    final_output = formatted_state["final_output"]
+
+    # Crucial assertion 2: task_type MUST be 'summarize' (step 1), NOT 'fetch_youtube_transcript' (step 0)
+    assert final_output.task_type == "summarize", f"Expected task_type='summarize', got '{final_output.task_type}'"
+    assert final_output.summary is not None, "Expected summary field to be populated from step 1 output"
+    assert final_output.summary.one_line == "Summary unavailable."
+
+
+def test_conversational_answer_audio_transcript_content_grounded():
+    """
+    Test that conversational_answer given lyrics/audio transcript engages with the
+    specific words in the context rather than returning a generic 'not enough context' hedge.
+    """
+    from app.tools.registry import dispatch_tool
+
+    class MockGeminiClient:
+        def generate_content(self, prompt):
+            res = type("Res", (), {})()
+            res.text = "Based on the lyrics transcribed, the song expresses themes of commitment and loyalty ('Never gonna give you up')."
+            return res
+
+    answer, succeeded = asyncio.run(
+        dispatch_tool(
+            "conversational_answer",
+            {
+                "query": "What is this audio clip about?",
+                "context": "User query: What is this audio clip about?\n\n---\n\nNever gonna give you up Never gonna let you down",
+            },
+            gemini_client=MockGeminiClient(),
+        )
+    )
+
+    assert succeeded is True
+    assert "not enough context" not in answer.lower()
+    assert "give you up" in answer.lower() or "commitment" in answer.lower()
+

@@ -29,3 +29,14 @@ build/
 tesseract/
 .DS_Store
 Thumbs.db
+
+# Personal recording aids & auto-generated docs
+docs/demo_script.md
+flow_diagram.md
+
+# Scratch scripts & temporary logs
+scratch/
+.system_generated/
+*.log
+
+
