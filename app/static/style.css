@@ -742,14 +742,62 @@ textarea:focus { border-color: var(--accent); }
   padding: var(--s4);
 }
 
-.modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--s2);
-  padding: var(--s3) var(--s4);
-  border-top: 1px solid var(--line);
-  background: var(--bg-raised);
+.modal-card-large {
+  max-width: 580px;
+  max-height: 85vh;
 }
+
+.modal-body-scrollable {
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+.guide-section h4 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: var(--s2);
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 4px;
+}
+
+.guide-section p {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin-bottom: var(--s2);
+}
+
+.guide-box {
+  padding: var(--s2) var(--s3);
+  margin-bottom: var(--s2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  font-size: 12px;
+}
+
+.guide-box strong {
+  display: block;
+  color: var(--accent);
+  margin-bottom: 2px;
+}
+
+.guide-box p {
+  margin-bottom: 0;
+}
+
+.guide-list {
+  padding-left: 20px;
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.guide-list strong { color: var(--text); }
+.guide-list a, .guide-section a { color: var(--accent); text-decoration: underline; }
 
 /* ─── Responsive ─── */
 @media (max-width: 1050px) {
