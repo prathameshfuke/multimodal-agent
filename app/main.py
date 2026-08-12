@@ -48,9 +48,9 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Multimodal Agent API",
-    description="LangGraph-orchestrated multimodal agentic assistant",
-    version="0.1.0",
+    title="Multimodal Intelligence API",
+    description="Production-grade LangGraph multimodal content processing system",
+    version="1.0.0",
     lifespan=lifespan,
 )
 

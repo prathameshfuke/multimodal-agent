@@ -18,6 +18,7 @@ from app.tools.code_explain import code_explain
 from app.tools.youtube_transcript import fetch_youtube_transcript
 from app.tools.cross_compare import cross_compare
 from app.tools.conversational import conversational_answer
+from app.tools.web_search import web_search
 from app.logging_utils import log_event
 
 
@@ -76,6 +77,15 @@ TOOL_REGISTRY: dict[str, dict] = {
             "text_b": "str — the second text",
         },
     },
+    "web_search": {
+        "fn": web_search,
+        "needs_gemini": True,
+        "description": (
+            "Search the live web for up-to-date information, real-time facts, current events, "
+            "or external queries that cannot be answered strictly from uploaded document content."
+        ),
+        "args_schema": {"query": "str — the search query string"},
+    },
     "conversational_answer": {
         "fn": conversational_answer,
         "needs_gemini": True,
@@ -113,19 +123,24 @@ def _is_fallback_result(tool_name: str, result: Any) -> bool:
     if tool_name == "summarize" and isinstance(result, SummaryOutput):
         return (
             result.one_line == "Summary unavailable."
+            or result.one_line == "AI service rate-limited."
             or "failed after one retry" in result.five_sentence
+            or "rate-limited" in result.five_sentence
         )
     if tool_name == "sentiment" and isinstance(result, SentimentOutput):
         return (
             result.confidence == 0.0
-            and "failed after one retry" in result.justification
+            and ("failed after one retry" in result.justification or "rate-limited" in result.justification)
         )
     if tool_name == "code_explain" and isinstance(result, str):
-        return "failed after one retry" in result
+        return "failed after one retry" in result or "rate-limited" in result
     if tool_name == "cross_compare" and isinstance(result, dict):
-        return "failed after one retry" in result.get("comparative_summary", "")
+        summary = result.get("comparative_summary", "")
+        return "failed after one retry" in summary or "rate-limited" in summary
+    if tool_name == "web_search" and isinstance(result, str):
+        return "failed" in result.lower() or "rate-limited" in result.lower() or "no search results found" in result.lower()
     if tool_name == "conversational_answer" and isinstance(result, str):
-        return "failed after one retry" in result
+        return "failed after one retry" in result or "rate-limited" in result
     if tool_name == "fetch_youtube_transcript" and isinstance(result, str):
         return (
             result.startswith("Could not extract")

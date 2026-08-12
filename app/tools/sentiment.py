@@ -37,8 +37,15 @@ async def sentiment(text: str, gemini_client: Any) -> SentimentOutput:
             data = json.loads(raw)
             return SentimentOutput(**data)
 
-        except Exception:
+        except Exception as exc:
             if attempt == 1:
+                from app.logging_utils import is_rate_limit_error
+                if is_rate_limit_error(exc):
+                    return SentimentOutput(
+                        label="neutral",
+                        confidence=0.0,
+                        justification="The AI service is temporarily rate-limited (429 API quota limit reached). Please wait a minute and try again.",
+                    )
                 return SentimentOutput(
                     label="neutral",
                     confidence=0.0,

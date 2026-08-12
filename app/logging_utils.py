@@ -29,3 +29,11 @@ def log_event(*, thread_id: str, node: str, status: str, latency_ms: int, **extr
         **sanitized_extra,
     }
     logger.info("multimodal_agent_event=%s", json.dumps(payload, default=str, sort_keys=True))
+
+
+def is_rate_limit_error(exc: Exception | None) -> bool:
+    """Check if an exception is a 429 / RESOURCE_EXHAUSTED / rate-limit response from Gemini SDK."""
+    if exc is None:
+        return False
+    err_str = str(exc).lower()
+    return any(term in err_str for term in ("429", "resource_exhausted", "quota", "rate limit", "rate_limit", "exceeded"))

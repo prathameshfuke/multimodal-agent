@@ -47,8 +47,15 @@ async def summarize(text: str, gemini_client: Any) -> SummaryOutput:
             data["bullets"] = _enforce_three_bullets(data.get("bullets", []))
             return SummaryOutput(**data)
 
-        except Exception:
+        except Exception as exc:
             if attempt == 1:
+                from app.logging_utils import is_rate_limit_error
+                if is_rate_limit_error(exc):
+                    return SummaryOutput(
+                        one_line="AI service rate-limited.",
+                        bullets=["Quota limit reached", "Please wait a minute", "Or supply custom key in Settings"],
+                        five_sentence="The AI service is temporarily rate-limited (429 API quota limit reached). Please wait a minute and try again or supply your own key in Settings.",
+                    )
                 return SummaryOutput(
                     one_line="Summary unavailable.",
                     bullets=["...", "...", "..."],

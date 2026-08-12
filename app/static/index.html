@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Multimodal Agentic Assistant</title>
-  <meta name="description" content="LangGraph-orchestrated multimodal agentic assistant with autonomous planning, tool execution, and explainability trace.">
+  <title>Multimodal Intelligence Platform</title>
+  <meta name="description" content="Production-grade multimodal intelligence platform for document, image, and audio extraction, processing, and task execution.">
   <link rel="stylesheet" href="/style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -15,10 +15,10 @@
     <!-- Header -->
     <header class="app-header">
       <div class="header-brand">
-        <div class="logo-mark" aria-hidden="true">MA</div>
+        <div class="logo-mark" aria-hidden="true">MI</div>
         <div>
-          <h1>Multimodal Agent</h1>
-          <p class="subtitle">LangGraph / Gemini 2.5 Flash / Whisper ASR</p>
+          <h1>Multimodal Intelligence Platform</h1>
+          <p class="subtitle">LangGraph Core / Gemini / Whisper ASR</p>
         </div>
       </div>
       <div class="header-meta">
@@ -101,6 +101,43 @@
         </div>
 
         <div class="inspection-content">
+          <!-- Token & Cost Estimator Card -->
+          <div class="inspector-card">
+            <div class="inspector-card-header" id="toggle-cost-estimator">
+              <span>Token &amp; API Cost Estimator</span>
+              <span class="cost-badge" id="cost-badge">$0.00000</span>
+            </div>
+            <div id="cost-estimator-body" class="inspector-card-body">
+              <div class="cost-metrics">
+                <div class="metric-row"><span>Input Tokens (est.):</span><strong id="input-tokens-val">0</strong></div>
+                <div class="metric-row"><span>Output Tokens (est.):</span><strong id="output-tokens-val">0</strong></div>
+                <div class="metric-row"><span>Est. Execution Cost:</span><strong id="total-cost-val" class="accent-text">$0.00000 USD</strong></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Real-Time Tool Call Visualizer Card -->
+          <div class="inspector-card">
+            <div class="inspector-card-header" id="toggle-tool-flow">
+              <span>Tool Call Visualizer</span>
+              <span class="chevron">&#9660;</span>
+            </div>
+            <div id="tool-flow-body" class="inspector-card-body">
+              <div id="tool-flow-stepper" class="tool-flow-stepper">
+                <div class="flow-step idle" id="flow-extract"><span class="step-num">1</span> <span class="step-label">extract</span></div>
+                <div class="flow-arrow">&rarr;</div>
+                <div class="flow-step idle" id="flow-fuse"><span class="step-num">2</span> <span class="step-label">fuse</span></div>
+                <div class="flow-arrow">&rarr;</div>
+                <div class="flow-step idle" id="flow-plan"><span class="step-num">3</span> <span class="step-label">planner</span></div>
+                <div class="flow-arrow">&rarr;</div>
+                <div class="flow-step idle" id="flow-exec"><span class="step-num">4</span> <span class="step-label">executor</span></div>
+                <div class="flow-arrow">&rarr;</div>
+                <div class="flow-step idle" id="flow-format"><span class="step-num">5</span> <span class="step-label">formatter</span></div>
+              </div>
+              <div id="tool-invocation-list" class="tool-invocation-list"></div>
+            </div>
+          </div>
+
           <div class="inspector-card">
             <div class="inspector-card-header" id="toggle-fused-context">
               <span>Fused Context</span>

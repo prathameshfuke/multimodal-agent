@@ -431,6 +431,10 @@ document.addEventListener('DOMContentLoaded', () => {
     chatThread.appendChild(card);
     chatThread.scrollTop = chatThread.scrollHeight;
 
+    // Update Cost Estimator & Tool Visualizer
+    const fusedText = document.getElementById('fused-context-text') ? document.getElementById('fused-context-text').textContent : '';
+    updateCostAndVisualizer(userQueryInput.value, trace, fusedText);
+
     // Attach drawer toggle listener
     const drawerHeader = card.querySelector('.trace-drawer-header');
     if (drawerHeader) {
@@ -445,6 +449,50 @@ document.addEventListener('DOMContentLoaded', () => {
           icon.textContent = '▼';
         }
       });
+    }
+  }
+
+  function updateCostAndVisualizer(userQuery, trace, fusedContext) {
+    const inputChars = (userQuery || '').length + (fusedContext || '').length;
+    const inputTokens = Math.max(120, Math.ceil(inputChars / 4));
+    let outputTokens = 350;
+    if (trace && trace.length > 0) {
+      outputTokens = trace.length * 150 + 200;
+    }
+    const inputCost = (inputTokens / 1000000) * 0.075;
+    const outputCost = (outputTokens / 1000000) * 0.30;
+    const totalCost = inputCost + outputCost;
+
+    const inputValEl = document.getElementById('input-tokens-val');
+    const outputValEl = document.getElementById('output-tokens-val');
+    const totalCostEl = document.getElementById('total-cost-val');
+    const costBadgeEl = document.getElementById('cost-badge');
+
+    if (inputValEl) inputValEl.textContent = inputTokens.toLocaleString();
+    if (outputValEl) outputValEl.textContent = outputTokens.toLocaleString();
+    if (totalCostEl) totalCostEl.textContent = `$${totalCost.toFixed(5)} USD`;
+    if (costBadgeEl) costBadgeEl.textContent = `$${totalCost.toFixed(5)}`;
+
+    const flowExtract = document.getElementById('flow-extract');
+    const flowFuse = document.getElementById('flow-fuse');
+    const flowPlan = document.getElementById('flow-plan');
+    const flowExec = document.getElementById('flow-exec');
+    const flowFormat = document.getElementById('flow-format');
+    const listEl = document.getElementById('tool-invocation-list');
+
+    if (flowExtract) flowExtract.className = 'flow-step success';
+    if (flowFuse) flowFuse.className = 'flow-step success';
+    if (flowPlan) flowPlan.className = 'flow-step success';
+    if (flowExec) flowExec.className = 'flow-step success';
+    if (flowFormat) flowFormat.className = 'flow-step success';
+
+    if (listEl && trace && trace.length > 0) {
+      listEl.innerHTML = trace.map((t, i) => `
+        <div class="tool-invocation-item">
+          <span>${i + 1}. ${escapeHtml(t.tool_name)}</span>
+          <span class="badge-${t.status}">${escapeHtml(t.status)} (${t.latency_ms}ms)</span>
+        </div>
+      `).join('');
     }
   }
 

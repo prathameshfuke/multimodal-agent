@@ -305,7 +305,7 @@ def test_multistep_plan_failed_final_step_status_and_task_type():
     # Crucial assertion 2: task_type MUST be 'summarize' (step 1), NOT 'fetch_youtube_transcript' (step 0)
     assert final_output.task_type == "summarize", f"Expected task_type='summarize', got '{final_output.task_type}'"
     assert final_output.summary is not None, "Expected summary field to be populated from step 1 output"
-    assert final_output.summary.one_line == "Summary unavailable."
+    assert final_output.summary.one_line in ("Summary unavailable.", "AI service rate-limited.")
 
 
 def test_conversational_answer_audio_transcript_content_grounded():
@@ -336,3 +336,46 @@ def test_conversational_answer_audio_transcript_content_grounded():
     assert "not enough context" not in answer.lower()
     assert "give you up" in answer.lower() or "commitment" in answer.lower()
 
+
+def test_planner_node_429_quota_exhaustion_message():
+    """
+    Regression test: When a 429/RESOURCE_EXHAUSTED exception occurs in planner_node,
+    the clarify_question must state that the AI service is rate-limited, not generic interpretation failure.
+    """
+    from app.graph.nodes import planner_node
+
+    class QuotaExhaustedGeminiClient:
+        def generate_content(self, _prompt):
+            raise RuntimeError("429 RESOURCE_EXHAUSTED: Quota exceeded for quota metric 'Generate Content API requests per minute'")
+
+    state = {
+        "session_id": "test_quota_exhausted",
+        "user_query": "summarize this text",
+        "fused_context": "User query: summarize this text\n\n---\n\nSample content",
+        "detected_urls": [],
+    }
+
+    out = asyncio.run(planner_node(state, gemini_client=QuotaExhaustedGeminiClient()))
+
+    assert out["status"] == "awaiting_clarification"
+    assert out["clarify_question"] is not None
+    assert "rate-limited" in out["clarify_question"]
+    assert "429 API quota limit reached" in out["clarify_question"]
+
+
+def test_summarize_429_quota_exhaustion_message():
+    """
+    Regression test: When summarize tool encounters a 429 exception, it returns a distinct
+    rate-limited SummaryOutput fallback.
+    """
+    from app.tools.summarize import summarize
+
+    class QuotaExhaustedGeminiClient:
+        def generate_content(self, _prompt):
+            raise RuntimeError("429 RESOURCE_EXHAUSTED: Quota exceeded for quota metric 'Generate Content API requests per minute'")
+
+    res = asyncio.run(summarize("Sample text to summarize", gemini_client=QuotaExhaustedGeminiClient()))
+
+    assert res.one_line == "AI service rate-limited."
+    assert "rate-limited" in res.five_sentence
+    assert "429 API quota limit reached" in res.five_sentence

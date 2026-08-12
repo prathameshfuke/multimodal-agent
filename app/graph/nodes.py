@@ -220,6 +220,9 @@ async def planner_node(
     configurable = config.get("configurable", {}) if config else {}
     client = gemini_client if gemini_client is not None else configurable.get("gemini_client")
 
+    from app.logging_utils import is_rate_limit_error
+
+    last_exc: Exception | None = None
     for attempt in range(2):
         try:
             if client is not None and hasattr(client, "aio"):
@@ -236,14 +239,19 @@ async def planner_node(
             plan = _parse_plan(raw)
             if plan is not None:
                 break
-        except Exception:
+        except Exception as exc:
+            last_exc = exc
             if attempt == 1:
                 break
 
     if plan is None:
+        if is_rate_limit_error(last_exc):
+            clarify_msg = "The AI service is temporarily rate-limited (429 API quota limit reached) — please wait a minute and try again or supply your own key in Settings."
+        else:
+            clarify_msg = "I couldn't interpret your request. Could you please restate what you'd like me to do?"
         plan = Plan(
             steps=[],
-            clarify_question="I couldn't interpret your request. Could you please restate what you'd like me to do?",
+            clarify_question=clarify_msg,
         )
 
     # Enforce invariant: steps XOR clarify_question, never both/neither

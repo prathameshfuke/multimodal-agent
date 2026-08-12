@@ -87,10 +87,6 @@ async def extract_audio(
 ) -> ExtractionResult:
     """Transcribe an audio file with faster-whisper and optionally clean the
     transcript with Gemini 2.5 Flash.
-
-    Confidence is derived from the average log-probability across segments.
-    The result is marked low_confidence if confidence < 0.60 or the
-    transcript is shorter than 10 characters.
     """
     warnings: list[str] = []
 
@@ -110,7 +106,6 @@ async def extract_audio(
             if segment_list
             else -1.0
         )
-        # Map log-probability (typically -1 to 0) to a 0–1 confidence score.
         confidence = (
             max(0.0, min(1.0, 1.0 + (avg_logprob / 3.0))) if segment_list else 0.5
         )

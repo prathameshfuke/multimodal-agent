@@ -178,16 +178,37 @@ def test_conversational_answer_returns_string():
 
 
 # ---------------------------------------------------------------------------
+# web_search
+# ---------------------------------------------------------------------------
+
+def test_web_search_empty_query_returns_error():
+    from app.tools.web_search import web_search
+    res = asyncio.run(web_search(""))
+    assert "must not be empty" in res
+
+
+def test_web_search_with_mock_client():
+    from app.tools.web_search import web_search
+    client = MagicMock()
+    mock_res = MagicMock()
+    mock_res.text = "Here are current search results for Python news."
+    client.models.generate_content.return_value = mock_res
+
+    res = asyncio.run(web_search("Python news", client))
+    assert "Python news" in res
+
+
+# ---------------------------------------------------------------------------
 # registry
 # ---------------------------------------------------------------------------
 
-def test_tool_registry_has_six_tools():
-    assert len(TOOL_REGISTRY) == 6
+def test_tool_registry_has_seven_tools():
+    assert len(TOOL_REGISTRY) == 7
 
 
 def test_get_tool_schema_for_planner_structure():
     schema = get_tool_schema_for_planner()
-    assert len(schema) == 6
+    assert len(schema) == 7
     for entry in schema:
         assert "name" in entry
         assert "description" in entry

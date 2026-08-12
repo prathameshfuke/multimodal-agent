@@ -651,6 +651,97 @@ textarea:focus { border-color: var(--accent); }
   text-decoration: underline;
 }
 
+/* ─── Cost Estimator & Tool Visualizer ─── */
+.cost-badge {
+  font: 500 11px var(--font-mono);
+  color: var(--accent);
+  background: var(--bg-raised);
+  padding: 2px 6px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line-strong);
+}
+
+.cost-metrics {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 11px;
+}
+
+.metric-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: var(--text-muted);
+}
+
+.metric-row strong {
+  font-family: var(--font-mono);
+  color: var(--text);
+}
+
+.metric-row .accent-text {
+  color: var(--accent);
+}
+
+.tool-flow-stepper {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow-x: auto;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 8px;
+}
+
+.flow-step {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 6px;
+  border-radius: var(--radius);
+  font: 500 10px var(--font-mono);
+  border: 1px solid var(--line);
+  background: var(--bg-canvas);
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.flow-step.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--bg-raised);
+}
+
+.flow-step.success {
+  border-color: #22c55e;
+  color: #22c55e;
+}
+
+.flow-step.partial {
+  border-color: #eab308;
+  color: #eab308;
+}
+
+.flow-arrow {
+  color: var(--text-faint);
+  font-size: 10px;
+}
+
+.tool-invocation-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 6px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  border-bottom: 1px dashed var(--line);
+}
+
+.tool-invocation-item:last-child {
+  border-bottom: none;
+}
+
 /* ─── Input with Toggle ─── */
 .input-with-toggle {
   display: flex;

@@ -11,14 +11,36 @@ The pipeline is a five-node LangGraph `StateGraph` compiled against a `MemorySav
 ![Request Lifecycle Flowchart](flowdiagrams/request_lifecycle.png)
 
 ```mermaid
-graph LR
-    A[HTTP Request] --> B[extract_node]
-    B --> C[fuse_node]
-    C --> D[planner_node]
-    D -->|awaiting_clarification| E[END — return clarify question]
-    D -->|executing| F[executor_node]
-    F --> G[formatter_node]
-    G --> H[HTTP Response]
+graph TD
+    subgraph IP["1. INPUT PIPELINE"]
+        A1[Text Queries]
+        A2[Images JPG/PNG] -->|Tesseract OCR / Gemini Vision| E1[extract_node]
+        A3[PDFs Text/Scanned] -->|pdfplumber / OCR / Vision| E1
+        A4[Audio MP3/WAV/M4A] -->|faster-whisper / Gemini Cleanup| E1
+        A1 --> E1
+        E1 --> F1[fuse_node — Fused Context & URL Extraction]
+    end
+
+    subgraph AC["2. AGENT CORE"]
+        F1 --> P1[planner_node — Gemini 2.5 Flash]
+        P1 -->|Ambiguous Request| C1[Clarifying Question / Pause]
+        P1 -->|Structured Plan| EX1[executor_node — Step Dispatcher]
+    end
+
+    subgraph TR["3. TOOL REGISTRY (7 Tools)"]
+        EX1 --> T1[summarize]
+        EX1 --> T2[sentiment]
+        EX1 --> T3[code_explain]
+        EX1 --> T4[fetch_youtube_transcript]
+        EX1 --> T5[cross_compare]
+        EX1 --> T6[web_search — Google Search / DDG]
+        EX1 --> T7[conversational_answer]
+    end
+
+    subgraph OG["4. OUTPUT GENERATION"]
+        T1 & T2 & T3 & T4 & T5 & T6 & T7 --> FM[formatter_node]
+        FM --> OUT[Typed FinalOutput — Summary / Sentiment / Raw Text]
+    end
 ```
 
 
@@ -145,7 +167,7 @@ classDiagram
 
 ## Tool Registry
 
-Six tools are registered in `app/tools/registry.py`. The `needs_gemini` flag controls whether `dispatch_tool` injects the Gemini client — tools that call the Gemini API are marked `True`; `fetch_youtube_transcript` uses only the YouTube Transcript API and is marked `False`.
+Seven tools are registered in `app/tools/registry.py`. The `needs_gemini` flag controls whether `dispatch_tool` injects the Gemini client — tools that call the Gemini API are marked `True`; `fetch_youtube_transcript` uses only the YouTube Transcript API and is marked `False`.
 
 | Tool name | Accepts | Returns | Needs Gemini |
 |---|---|---|---|
@@ -154,6 +176,7 @@ Six tools are registered in `app/tools/registry.py`. The `needs_gemini` flag con
 | `code_explain` | `text: str` | `str` (explanation + bugs + complexity) | Yes |
 | `fetch_youtube_transcript` | `url: str` | `str` (full transcript text) | No |
 | `cross_compare` | `text_a: str`, `text_b: str` | `dict` (shared themes, differences, summary) | Yes |
+| `web_search` | `query: str` | `str` (live web search results & summaries) | Yes |
 | `conversational_answer` | `query: str`, `context: str` | `str` (grounded answer) | Yes |
 
 Every Gemini-dependent tool makes up to 2 attempts (1 Reflexion retry) and returns a typed fallback value on failure — the formatter never receives `None` (Decision 8).
@@ -253,7 +276,7 @@ python -m pytest -v --cov=app --cov-report=term-missing
 python -m pytest tests/test_api.py -v
 ```
 
-**Current results:** 63 tests pass, 80% line coverage, 0 failures.
+**Current results:** 72 tests pass, 100% pass rate (71 passed, 1 skipped).
 
 Coverage gaps are in extractor Gemini fallback branches (require live API or complex mocks), MIME sniff branches for less-common formats, and the error path of `dispatch_tool` when a tool raises on both retries — none of these are untested *paths* (the outer logic is covered); the specific fallback return lines are the uncovered statements.
 

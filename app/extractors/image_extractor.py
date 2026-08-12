@@ -18,11 +18,12 @@ async def _call_gemini_vision_with_retry(
     image: Image.Image,
     gemini_client: Any = None,
     prompt: str = "Transcribe all visible text from this image accurately.",
-) -> tuple[str, bool]:
-    """Wraps Gemini vision API call with 1 Reflexion-style retry."""
+) -> tuple[str, bool, bool]:
+    """Wraps Gemini vision API call with 1 Reflexion-style retry. Returns (text, success, is_rate_limit)."""
     if gemini_client is None:
-        return "", False
+        return "", False, False
 
+    last_exc: Exception | None = None
     for attempt in range(2):
         try:
             if hasattr(gemini_client, "aio") and hasattr(gemini_client.aio, "models"):
@@ -30,18 +31,20 @@ async def _call_gemini_vision_with_retry(
                     model="gemini-2.5-flash",
                     contents=[image, prompt],
                 )
-                return (response.text or "").strip(), True
+                return (response.text or "").strip(), True, False
             elif hasattr(gemini_client, "generate_content"):
                 res = gemini_client.generate_content([image, prompt])
                 text = res.text if hasattr(res, "text") else str(res)
-                return text.strip(), True
+                return text.strip(), True, False
             else:
-                return "", False
-        except Exception:
+                return "", False, False
+        except Exception as exc:
+            last_exc = exc
             if attempt == 1:
-                return "", False
+                from app.logging_utils import is_rate_limit_error
+                return "", False, is_rate_limit_error(last_exc)
             await asyncio.sleep(0.5)
-    return "", False
+    return "", False, False
 
 
 async def extract_image(file_path: str, gemini_client: Any = None) -> ExtractionResult:
@@ -74,7 +77,7 @@ async def extract_image(file_path: str, gemini_client: Any = None) -> Extraction
             f"Low local OCR confidence ({mean_conf:.2f}) or short text length ({len(ocr_text)} chars); triggering Gemini vision fallback."
         )
 
-        vision_text, success = await _call_gemini_vision_with_retry(image, gemini_client)
+        vision_text, success, is_rate_limit = await _call_gemini_vision_with_retry(image, gemini_client)
         if success and vision_text:
             return ExtractionResult(
                 source_file=file_path,
@@ -85,7 +88,11 @@ async def extract_image(file_path: str, gemini_client: Any = None) -> Extraction
                 warnings=warnings,
             )
 
-        warnings.append("Gemini vision fallback failed after 1 retry. Returning low-confidence local OCR text.")
+        if is_rate_limit:
+            warnings.append("Gemini vision fallback rate-limited (429 API quota limit reached). Returning low-confidence local OCR text.")
+        else:
+            warnings.append("Gemini vision fallback failed after 1 retry. Returning low-confidence local OCR text.")
+
         return ExtractionResult(
             source_file=file_path,
             modality="image",

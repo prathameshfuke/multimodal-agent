@@ -27,8 +27,11 @@ async def conversational_answer(query: str, context: str, gemini_client: Any) ->
                 res = gemini_client.generate_content(prompt)
                 return (res.text if hasattr(res, "text") else str(res)).strip()
 
-        except Exception:
+        except Exception as exc:
             if attempt == 1:
+                from app.logging_utils import is_rate_limit_error
+                if is_rate_limit_error(exc):
+                    return "The AI service is temporarily rate-limited (429 API quota limit reached). Please wait a minute and try again or supply your own key in Settings."
                 return "Conversational answer failed after one retry."
 
     return "Conversational answer failed after one retry."

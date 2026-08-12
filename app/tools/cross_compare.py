@@ -34,8 +34,16 @@ async def cross_compare(text_a: str, text_b: str, gemini_client: Any) -> dict:
 
             return json.loads(raw)
 
-        except Exception:
+        except Exception as exc:
             if attempt == 1:
+                from app.logging_utils import is_rate_limit_error
+                if is_rate_limit_error(exc):
+                    return {
+                        "same_topic": False,
+                        "shared_themes": [],
+                        "key_differences": [],
+                        "comparative_summary": "The AI service is temporarily rate-limited (429 API quota limit reached). Please wait a minute and try again.",
+                    }
                 return {
                     "same_topic": False,
                     "shared_themes": [],

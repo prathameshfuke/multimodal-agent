@@ -284,7 +284,10 @@ def test_tc4_unmocked_real_planner_youtube_url(client):
 
     assert response.status_code == 200
     body = response.json()
-    if body.get("status") == "awaiting_clarification" and "couldn't interpret" in body.get("question", "").lower():
+    if body.get("status") == "awaiting_clarification" and (
+        "couldn't interpret" in body.get("question", "").lower()
+        or "rate-limited" in body.get("question", "").lower()
+    ):
         pytest.skip("Gemini API rate-limit quota exhausted during unmocked test run.")
 
     assert body["status"] == "done"
