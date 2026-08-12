@@ -201,3 +201,5 @@ We added `test_real_graph_resume_does_not_re_extract` to `tests/test_api.py` and
 
 **Tradeoff Accepted**: On clarify-resume (`/reply`), the client must send the `X-Gemini-Api-Key` header again if a custom key was used for the initial session. The frontend `app.js` handles this transparently by maintaining the custom key in JS memory for the active browser session.
 
+> **Frontend Key Resolution Note**: On page load, `app.js` queries `GET /health` to read `gemini_configured`. If `gemini_configured: true` (server default key present), the frontend permits requests with an empty Settings panel and omits the `X-Gemini-Api-Key` HTTP header completely, allowing the backend to seamlessly fall back to `GEMINI_API_KEY`. If a custom key is typed in Settings, `X-Gemini-Api-Key` is sent to override the server default.
+

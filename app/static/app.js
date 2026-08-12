@@ -59,8 +59,19 @@ document.addEventListener('DOMContentLoaded', () => {
     updateKeyAvailabilityUI();
   }
 
+  const settingsStatusHint = document.getElementById('settings-status-hint');
+
   function updateKeyAvailabilityUI() {
     const hasKey = customApiKey || isServerKeyConfigured;
+
+    if (settingsStatusHint) {
+      if (isServerKeyConfigured) {
+        settingsStatusHint.textContent = 'A server default key is configured — you only need to enter your own key below if you wish to override it.';
+      } else {
+        settingsStatusHint.textContent = 'No server default key is configured. Please enter your Gemini API key below to submit requests.';
+      }
+    }
+
     if (!hasKey) {
       noKeyWarning.classList.remove('hidden');
       submitBtn.disabled = true;

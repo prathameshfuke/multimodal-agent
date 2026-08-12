@@ -54,6 +54,32 @@ async def _call_gemini_cleanup_with_retry(
     return "", False
 
 
+_MODEL_CACHE: dict[str, WhisperModel] = {}
+
+
+def _get_whisper_model(model_size: str = "base") -> WhisperModel:
+    """Retrieve or instantiate a cached WhisperModel singleton to avoid re-allocating
+    ctranslate2 model weights on every audio request. Tries offline local loading
+    first to prevent runtime HuggingFace network pings or hangs.
+    """
+    if model_size not in _MODEL_CACHE:
+        opt_cache = Path("/opt/huggingface")
+        kwargs: dict[str, Any] = {"device": "cpu", "compute_type": "int8"}
+        if opt_cache.exists():
+            kwargs["download_root"] = str(opt_cache)
+        try:
+            _MODEL_CACHE[model_size] = WhisperModel(model_size, local_files_only=True, **kwargs)
+        except Exception:
+            _MODEL_CACHE[model_size] = WhisperModel(model_size, **kwargs)
+    return _MODEL_CACHE[model_size]
+
+
+def _transcribe_sync(model: WhisperModel, file_path: str) -> tuple[list, Any]:
+    """Execute synchronous CTranslate2 CPU-bound transcription."""
+    segments, info = model.transcribe(file_path, beam_size=1)
+    return list(segments), info
+
+
 async def extract_audio(
     file_path: str,
     gemini_client: Any = None,
@@ -69,10 +95,9 @@ async def extract_audio(
     warnings: list[str] = []
 
     try:
-        model = WhisperModel(model_size, device="cpu", compute_type="int8")
-        segments, info = model.transcribe(file_path, beam_size=5)
+        model = _get_whisper_model(model_size)
+        segment_list, info = await asyncio.to_thread(_transcribe_sync, model, file_path)
 
-        segment_list = list(segments)
         raw_text = " ".join(
             seg.text.strip() for seg in segment_list if seg.text
         ).strip()

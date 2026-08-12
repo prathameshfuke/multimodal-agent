@@ -697,3 +697,112 @@ def test_api_key_never_logged_in_events(caplog):
         assert "SECRET_HEADER_KEY" not in record.message
         assert "[REDACTED]" in record.message
 
+
+def test_health_returns_gemini_configured_status():
+    tc = TestClient(app)
+    response = tc.get("/health")
+    assert response.status_code == 200
+    data = response.json()
+    assert "status" in data
+    assert "gemini_configured" in data
+
+
+def test_session_without_x_gemini_api_key_header_uses_server_env():
+    """
+    Verifies that when X-Gemini-Api-Key header is absent, the backend accepts the request
+    and uses the server GEMINI_API_KEY without requiring a header.
+    """
+    from unittest.mock import patch
+    tc = TestClient(app)
+    done_state = {
+        "session_id": "test_env_key",
+        "status": "done",
+        "final_output": FinalOutput(task_type="conversational", raw_text="Response using env key"),
+        "trace": [],
+    }
+    app.state.graph = MockGraph(done_state)
+
+    mock_client_inst = MagicMock()
+    mock_res = MagicMock()
+    mock_client_inst.models.count_tokens.return_value = mock_res
+
+    with patch("os.getenv", side_effect=lambda k, d=None: "AIzaSyServerEnvKey" if k == "GEMINI_API_KEY" else d), \
+         patch("app.main.genai.Client", return_value=mock_client_inst) as mock_client_cls:
+
+        response = tc.post("/session", data={"user_query": "hello"})
+        assert response.status_code == 200
+        assert response.json()["status"] == "done"
+        mock_client_cls.assert_called_once_with(api_key="AIzaSyServerEnvKey")
+
+
+def test_session_with_x_gemini_api_key_header_overrides_server_env():
+    """
+    Verifies that when X-Gemini-Api-Key header is sent, it overrides the server GEMINI_API_KEY.
+    """
+    from unittest.mock import patch
+    tc = TestClient(app)
+    done_state = {
+        "session_id": "test_override_key",
+        "status": "done",
+        "final_output": FinalOutput(task_type="conversational", raw_text="Response using custom key"),
+        "trace": [],
+    }
+    app.state.graph = MockGraph(done_state)
+
+    mock_client_inst = MagicMock()
+    mock_res = MagicMock()
+    mock_client_inst.models.count_tokens.return_value = mock_res
+
+    with patch("os.getenv", side_effect=lambda k, d=None: "AIzaSyServerEnvKey" if k == "GEMINI_API_KEY" else d), \
+         patch("app.main.genai.Client", return_value=mock_client_inst) as mock_client_cls:
+
+        response = tc.post(
+            "/session",
+            data={"user_query": "hello"},
+            headers={"X-Gemini-Api-Key": "AIzaSyCustomHeaderOverrideKey"},
+        )
+        assert response.status_code == 200
+        assert response.json()["status"] == "done"
+        mock_client_cls.assert_called_once_with(api_key="AIzaSyCustomHeaderOverrideKey")
+
+
+def test_planner_unambiguous_query_produces_real_plan():
+    """
+    Regression test: An unambiguous request ('hello, what can you do?') must produce
+    a valid plan or conversational answer, not hit the parse-failure clarify question.
+    """
+    import asyncio
+    from app.graph.nodes import planner_node
+
+    class MockGeminiPlannerClient:
+        def generate_content(self, prompt):
+            res = MagicMock()
+            res.text = '''```json
+{
+  "steps": [
+    {
+      "tool_name": "conversational_answer",
+      "args": {"query": "hello, what can you do?", "context": ""},
+      "reason": "Answer conversational greeting and describe capabilities."
+    }
+  ],
+  "clarify_question": null
+}
+```'''
+            return res
+
+    state = {
+        "session_id": "test_unambiguous",
+        "user_query": "hello, what can you do?",
+        "fused_context": "User query: hello, what can you do?",
+        "detected_urls": [],
+    }
+
+    out = asyncio.run(planner_node(state, gemini_client=MockGeminiPlannerClient()))
+
+    assert out["status"] == "executing"
+    assert out["clarify_question"] is None
+    assert len(out["plan"].steps) == 1
+    assert out["plan"].steps[0].tool_name == "conversational_answer"
+
+
