@@ -22,6 +22,9 @@
         </div>
       </div>
       <div class="header-meta">
+        <button type="button" id="open-settings-btn" class="btn btn-secondary btn-sm" aria-label="Open Settings">
+          <span class="settings-icon">&#9881;</span> Settings
+        </button>
         <div id="status-pill" class="status-pill status-ready">
           <span class="status-dot"></span>
           <span id="status-text">Ready</span>
@@ -36,6 +39,11 @@
         <div class="panel-header">
           <h2>Input</h2>
           <span class="panel-subtitle">Upload files or type a query</span>
+        </div>
+
+        <div id="no-key-warning" class="banner banner-warning hidden">
+          <div class="banner-title">API Key Required</div>
+          <p>No server API key configured. Please enter your Gemini API key in <a href="#" id="link-to-settings">Settings</a> to submit requests.</p>
         </div>
 
         <form id="agent-form" class="agent-form">
@@ -119,6 +127,32 @@
     </main>
   </div>
 
+  <!-- Settings Modal -->
+  <div id="settings-modal" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Settings</h3>
+        <button type="button" id="close-settings-btn" class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="settings-api-key">Gemini API Key</label>
+          <div class="input-with-toggle">
+            <input type="password" id="settings-api-key" placeholder="AIzaSy..." autocomplete="off">
+            <button type="button" id="toggle-key-visibility" class="btn btn-secondary btn-sm">Show</button>
+          </div>
+          <p class="settings-hint">Your key is used only for this session and is never stored on our server.</p>
+          <p class="settings-hint faint">Key is held in memory for this session and cleared on page reload.</p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="save-settings-btn" class="btn btn-primary">Save Key</button>
+        <button type="button" id="clear-settings-btn" class="btn btn-secondary">Clear Key</button>
+      </div>
+    </div>
+  </div>
+
   <script src="/app.js"></script>
 </body>
 </html>
+

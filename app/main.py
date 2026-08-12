@@ -13,9 +13,10 @@ import tempfile
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Any
 
 from dotenv import load_dotenv
-from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import BackgroundTasks, FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -40,16 +41,9 @@ STATIC_DIR = Path(__file__).resolve().parent / "static"
 async def lifespan(app: FastAPI):
     TEMP_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Construct the Gemini client exactly ONCE at startup. Every node and
-    # tool receives this same instance — no defensive per-tool reconstruction.
-    gemini_client = None
-    api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
-    if api_key and genai is not None:
-        gemini_client = genai.Client(api_key=api_key)
-
-    # Build once at startup; reuse across all requests (Decision 1 — graph is pure scheduler).
-    app.state.graph = build_graph(gemini_client=gemini_client)
-    app.state.gemini_client = gemini_client
+    # StateGraph is pure and compiled once at startup.
+    # Client instances are constructed per request from header or environment.
+    app.state.graph = build_graph()
     yield
 
 
@@ -72,6 +66,43 @@ app.add_middleware(
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
+
+async def _get_or_create_gemini_client(x_gemini_api_key: str | None = None) -> Any:
+    """
+    Resolve Gemini API key from per-request header or server environment,
+    construct a per-session client instance, and run a lightweight validation check.
+    Raises HTTP 400 if no key is present or the provided key is invalid.
+    """
+    api_key = (x_gemini_api_key or "").strip() or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+    if not api_key:
+        raise HTTPException(
+            status_code=400,
+            detail="No Gemini API key provided. Please supply an API key in the Settings panel or configure GEMINI_API_KEY on the server.",
+        )
+    if genai is None:
+        raise HTTPException(
+            status_code=500,
+            detail="google-genai SDK is not installed on the server.",
+        )
+    try:
+        client = genai.Client(api_key=api_key)
+        # Fast key validation (Requirement 5)
+        if hasattr(client, "aio") and hasattr(client.aio, "models"):
+            res = client.aio.models.count_tokens(model="gemini-2.5-flash", contents="ping")
+            if hasattr(res, "__await__"):
+                await res
+        elif hasattr(client, "models") and hasattr(client.models, "count_tokens"):
+            client.models.count_tokens(model="gemini-2.5-flash", contents="ping")
+        return client
+    except HTTPException:
+        raise
+    except Exception as exc:
+        log_event(thread_id="validation", node="api_key_validation", status="error", latency_ms=0, error=str(exc))
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid Gemini API key provided: {exc}",
+        )
 
 
 def _cleanup_thread_dir(thread_id: str) -> None:
@@ -112,9 +143,11 @@ async def create_session(
     background_tasks: BackgroundTasks,
     user_query: str = Form(default=""),
     files: list[UploadFile] = File(default=[]),
+    x_gemini_api_key: str | None = Header(default=None, alias="X-Gemini-Api-Key"),
 ):
     """
-    Start a new agent session. Returns immediately with either:
+    Start a new agent session. Resolves per-session Gemini client from header or server env.
+    Returns immediately with either:
       - {"status": "done", "thread_id": ..., "output": {...}, "trace": [...]}
       - {"status": "awaiting_clarification", "thread_id": ..., "question": "..."}
     """
@@ -126,10 +159,12 @@ async def create_session(
         if not user_query or not user_query.strip():
             raise HTTPException(status_code=422, detail="user_query must not be empty.")
 
+        # Construct and validate per-session Gemini client fast before running graph
+        gemini_client = await _get_or_create_gemini_client(x_gemini_api_key)
+
         raw_files: list[UploadedFileRef] = []
         for index, upload in enumerate(files):
             filename = upload.filename or "upload"
-            # Keep user-controlled names from escaping the thread directory.
             dest = thread_dir / f"{index}_{Path(filename).name}"
             detected_mime = await validate_and_store_upload(upload, dest)
             raw_files.append(
@@ -155,12 +190,9 @@ async def create_session(
             "status": "extracting",
         }
 
-        config = {"configurable": {"thread_id": thread_id}}
+        config = {"configurable": {"thread_id": thread_id, "gemini_client": gemini_client}}
         final_state = await app.state.graph.ainvoke(initial_state, config=config)
 
-        # Temp files are consumed once by extract_node and never re-read.
-        # On-response cleanup is safe for both the normal and clarify-pause paths.
-        # See decisions.md Decision 10 for the extractor-level audit that confirms this.
         background_tasks.add_task(_cleanup_thread_dir, thread_id)
 
         return _serialize_response(final_state, thread_id)
@@ -187,16 +219,18 @@ async def reply_to_session(
     thread_id: str,
     background_tasks: BackgroundTasks,
     reply: str = Form(...),
+    x_gemini_api_key: str | None = Header(default=None, alias="X-Gemini-Api-Key"),
 ):
     """
     Resume a clarify-paused session with the user's answer.
-    Loads the checkpointed state (extraction_results, fused_context, etc.),
-    updates user_query and rebuilds fused_context, then resumes from planner_node.
     """
     try:
         if not reply or not reply.strip():
             raise HTTPException(status_code=422, detail="reply must not be empty.")
-        config = {"configurable": {"thread_id": thread_id}}
+
+        gemini_client = await _get_or_create_gemini_client(x_gemini_api_key)
+
+        config = {"configurable": {"thread_id": thread_id, "gemini_client": gemini_client}}
         graph = app.state.graph
         snapshot = await graph.aget_state(config)
 
@@ -208,8 +242,6 @@ async def reply_to_session(
 
         old_values = snapshot.values
 
-        # Rebuild fused_context with the clarification as the new user_query.
-        # This mirrors fuse_node's logic so the planner sees an accurate context.
         extraction_results = old_values.get("extraction_results", [])
         extracted_texts = [r.text for r in extraction_results if r.text]
         body = "\n\n---\n\n".join(extracted_texts)
@@ -217,8 +249,6 @@ async def reply_to_session(
             f"User query: {reply}\n\n---\n\n{body}" if body else f"User query: {reply}"
         )
 
-        # Update state as if fuse_context node just produced this output.
-        # LangGraph will continue from the edges after fuse_context → planner_node.
         await graph.aupdate_state(
             config,
             {
@@ -230,7 +260,6 @@ async def reply_to_session(
             as_node="fuse_context",
         )
 
-        # Resume the graph from the planner node with no new top-level input.
         final_state = await graph.ainvoke(None, config=config)
 
         background_tasks.add_task(_cleanup_thread_dir, thread_id)

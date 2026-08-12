@@ -211,11 +211,16 @@ uvicorn app.main:app --reload --port 8000
 
 The Swagger UI is available at `http://localhost:8000/docs`.
 
-### Environment Variables
+### Environment Variables & Key Supply
 
-| Variable | Required | Description |
+Gemini API keys can be supplied in two ways:
+1. **Server Environment Variable**: Set `GEMINI_API_KEY` (or `GOOGLE_API_KEY`) in `.env` or server environment variables.
+2. **Per-User Request Header**: Users can supply their own key via the UI **Settings** panel (or via the `X-Gemini-Api-Key` HTTP header). The custom key overrides the server default and is held strictly in JS memory for the active session (never logged or stored on disk).
+
+| Variable / Header | Required | Description |
 |---|---|---|
-| `GEMINI_API_KEY` | Yes | Google Gemini API key |
+| `X-Gemini-Api-Key` | Header (Optional) | Per-user custom Gemini API key sent with `/session` and `/reply` fetch requests. Overrides server default. |
+| `GEMINI_API_KEY` | Server (Optional) | Server-wide default Gemini API key. Used if no `X-Gemini-Api-Key` header is provided. |
 | `TESSERACT_CMD` | Windows only | Absolute path to `tesseract.exe` (e.g. `C:\Program Files\Tesseract-OCR\tesseract.exe`). Docker/Linux does not need this — Tesseract is installed via `apt-get`. |
 | `PORT` | No | Server port (defaults to 8000; Render supplies this automatically) |
 
@@ -231,7 +236,7 @@ python -m pytest -v --cov=app --cov-report=term-missing
 python -m pytest tests/test_api.py -v
 ```
 
-**Current results:** 58 tests pass, 79% line coverage, 0 failures.
+**Current results:** 63 tests pass, 80% line coverage, 0 failures.
 
 Coverage gaps are in extractor Gemini fallback branches (require live API or complex mocks), MIME sniff branches for less-common formats, and the error path of `dispatch_tool` when a tool raises on both retries — none of these are untested *paths* (the outer logic is covered); the specific fallback return lines are the uncovered statements.
 
@@ -277,6 +282,7 @@ Full rationale for every key architectural choice is in [`decisions.md`](decisio
 | 10 | Temp file cleanup | On-response via `BackgroundTask` (extractor audit confirmed no file re-reads after `extract_node`) |
 | 11 | Resume mechanism | `aupdate_state` + `ainvoke(None)`; empirically verified with real `MemorySaver` |
 | 12 | Upload size limit | 10 MB per file, streaming chunk enforcement |
+| 13 | Per-session client construction | Header `X-Gemini-Api-Key` -> `genai.Client()` per request via `RunnableConfig`; no key string persisted |
 
 ---
 

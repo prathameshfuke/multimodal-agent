@@ -11,6 +11,8 @@ import time
 from pathlib import Path
 from typing import Any
 
+from langchain_core.runnables import RunnableConfig
+
 from app.schemas.extraction import ExtractionResult
 from app.schemas.output import FinalOutput, SentimentOutput, SummaryOutput
 from app.schemas.plan import Plan, ToolCall
@@ -87,7 +89,9 @@ def _summarise_result(result: ExtractionResult) -> str:
 # ---------------------------------------------------------------------------
 
 
-async def extract_node(state: AgentState, *, gemini_client: Any = None) -> AgentState:
+async def extract_node(
+    state: AgentState, config: RunnableConfig = None, *, gemini_client: Any = None
+) -> AgentState:
     """Run all uploaded files through their respective extractors concurrently.
 
     Partial failures are recorded in the trace with status='partial' and
@@ -96,7 +100,9 @@ async def extract_node(state: AgentState, *, gemini_client: Any = None) -> Agent
     started = time.monotonic()
     thread_id = state.get("session_id", "unknown")
     raw_files = state.get("raw_files", [])
-    tasks = [_extract_one(f, gemini_client) for f in raw_files]
+    configurable = config.get("configurable", {}) if config else {}
+    client = gemini_client if gemini_client is not None else configurable.get("gemini_client")
+    tasks = [_extract_one(f, client) for f in raw_files]
     results: list[ExtractionResult | None] = await asyncio.gather(*tasks)
 
     good: list[ExtractionResult] = []
@@ -205,23 +211,27 @@ def _parse_plan(raw: str) -> Plan | None:
         return None
 
 
-async def planner_node(state: AgentState, *, gemini_client: Any = None) -> AgentState:
+async def planner_node(
+    state: AgentState, config: RunnableConfig = None, *, gemini_client: Any = None
+) -> AgentState:
     started = time.monotonic()
     prompt = _build_planner_prompt(state)
     plan: Plan | None = None
+    configurable = config.get("configurable", {}) if config else {}
+    client = gemini_client if gemini_client is not None else configurable.get("gemini_client")
 
     for attempt in range(2):
         try:
-            if gemini_client is not None and hasattr(gemini_client, "aio"):
-                response = await gemini_client.aio.models.generate_content(
+            if client is not None and hasattr(client, "aio"):
+                response = await client.aio.models.generate_content(
                     model="gemini-2.5-flash", contents=prompt
                 )
                 raw = (response.text or "").strip()
-            elif gemini_client is not None:
-                res = gemini_client.generate_content(prompt)
+            elif client is not None:
+                res = client.generate_content(prompt)
                 raw = (res.text if hasattr(res, "text") else str(res)).strip()
             else:
-                raise RuntimeError("gemini_client is None — client wiring broken at startup")
+                raise RuntimeError("gemini_client is None — no valid API key available for session")
 
             plan = _parse_plan(raw)
             if plan is not None:
@@ -266,7 +276,9 @@ async def planner_node(state: AgentState, *, gemini_client: Any = None) -> Agent
 # ---------------------------------------------------------------------------
 
 
-async def executor_node(state: AgentState, *, gemini_client: Any = None) -> AgentState:
+async def executor_node(
+    state: AgentState, config: RunnableConfig = None, *, gemini_client: Any = None
+) -> AgentState:
     """Run each planned tool step sequentially, with 1 Reflexion retry per step.
 
     On a first-attempt failure the error message is injected into step.args
@@ -275,6 +287,8 @@ async def executor_node(state: AgentState, *, gemini_client: Any = None) -> Agen
     """
     started = time.monotonic()
     thread_id = state.get("session_id", "unknown")
+    configurable = config.get("configurable", {}) if config else {}
+    client = gemini_client if gemini_client is not None else configurable.get("gemini_client")
     plan: Plan | None = state.get("plan")
     if not plan or not plan.steps:
         log_event(thread_id=thread_id, node="executor_node", status="success", latency_ms=0, steps=0)
@@ -292,7 +306,7 @@ async def executor_node(state: AgentState, *, gemini_client: Any = None) -> Agen
         for attempt in range(2):
             try:
                 step_output = await dispatch_tool(
-                    step.tool_name, step.args, gemini_client, thread_id=thread_id
+                    step.tool_name, step.args, client, thread_id=thread_id
                 )
                 break
             except Exception as exc:

@@ -52,15 +52,22 @@ def build_graph(*, gemini_client: Any = None):
     """
     Compile and return the runnable StateGraph with MemorySaver checkpointer.
     Call once at app startup; reuse the returned object for all requests.
+    If gemini_client is provided, it is pre-bound to nodes for backward compatibility in tests;
+    otherwise, nodes read gemini_client per session from AgentState.
     """
     graph = StateGraph(AgentState)
 
-    # LangGraph invokes nodes with state only, so bind the application-scoped
-    # client here rather than allowing each node to receive None at runtime.
-    graph.add_node("extract", partial(extract_node, gemini_client=gemini_client))
-    graph.add_node("fuse_context", fuse_node)
-    graph.add_node("plan", partial(planner_node, gemini_client=gemini_client))
-    graph.add_node("execute_tools", partial(executor_node, gemini_client=gemini_client))
+    if gemini_client is not None:
+        graph.add_node("extract", partial(extract_node, gemini_client=gemini_client))
+        graph.add_node("fuse_context", fuse_node)
+        graph.add_node("plan", partial(planner_node, gemini_client=gemini_client))
+        graph.add_node("execute_tools", partial(executor_node, gemini_client=gemini_client))
+    else:
+        graph.add_node("extract", extract_node)
+        graph.add_node("fuse_context", fuse_node)
+        graph.add_node("plan", planner_node)
+        graph.add_node("execute_tools", executor_node)
+
     graph.add_node("format_output", formatter_node)
 
     graph.set_entry_point("extract")

@@ -565,3 +565,95 @@ def test_gemini_client_reaches_tool_from_startup(client):
     finally:
         TOOL_REGISTRY["summarize"]["fn"] = original_fn
 
+
+# ---------------------------------------------------------------------------
+# Test 11: Per-Session Custom Gemini API Key & Logging Security Tests
+# ---------------------------------------------------------------------------
+
+def test_user_supplied_api_key_header_succeeds(client):
+    from unittest.mock import patch, MagicMock
+
+    mock_graph = MockGraph(_done_state("summarize"))
+    _patch_graph(client, mock_graph)
+
+    mock_genai_client = MagicMock(name="valid_user_gemini_client")
+
+    with patch("app.main.genai.Client", return_value=mock_genai_client):
+        response = client.post(
+            "/session",
+            headers={"X-Gemini-Api-Key": "user_custom_valid_key_123"},
+            data={"user_query": "summarize this"},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "done"
+
+
+def test_invalid_user_supplied_api_key_fails_fast_400(client):
+    from unittest.mock import patch
+
+    def mock_invalid_client(*args, **kwargs):
+        raise Exception("API_KEY_INVALID: Key not found")
+
+    with patch("app.main.genai.Client", side_effect=mock_invalid_client):
+        response = client.post(
+            "/session",
+            headers={"X-Gemini-Api-Key": "invalid_key_999"},
+            data={"user_query": "summarize this"},
+        )
+
+    assert response.status_code == 400
+    assert "Invalid Gemini API key" in response.json()["detail"]
+
+
+def test_no_api_key_provided_returns_400(client, monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+
+    response = client.post(
+        "/session",
+        data={"user_query": "summarize this"},
+    )
+
+    assert response.status_code == 400
+    assert "No Gemini API key provided" in response.json()["detail"]
+
+
+def test_server_default_env_api_key_fallback_succeeds(client, monkeypatch):
+    from unittest.mock import patch, MagicMock
+
+    monkeypatch.setenv("GEMINI_API_KEY", "server_env_fallback_key")
+    mock_graph = MockGraph(_done_state("summarize"))
+    _patch_graph(client, mock_graph)
+
+    mock_client_inst = MagicMock(name="env_fallback_client")
+
+    with patch("app.main.genai.Client", return_value=mock_client_inst):
+        response = client.post(
+            "/session",
+            data={"user_query": "summarize this"},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "done"
+
+
+def test_api_key_never_logged_in_events(caplog):
+    import logging
+    from app.logging_utils import log_event
+
+    with caplog.at_level(logging.INFO):
+        log_event(
+            thread_id="test_thread",
+            node="test_node",
+            status="success",
+            latency_ms=10,
+            api_key="AIzaSySECRET_RAW_KEY_THAT_MUST_NOT_BE_LOGGED",
+            x_gemini_api_key="SECRET_HEADER_KEY",
+        )
+
+    for record in caplog.records:
+        assert "AIzaSySECRET_RAW_KEY_THAT_MUST_NOT_BE_LOGGED" not in record.message
+        assert "SECRET_HEADER_KEY" not in record.message
+        assert "[REDACTED]" in record.message
+

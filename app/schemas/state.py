@@ -20,8 +20,7 @@ class AgentState(TypedDict):
     trace: list[TraceEvent]
     clarify_question: str | None
     final_output: FinalOutput | None
-    # Declared here (not a scratch key) so MemorySaver checkpoints it on clarify-pause.
-    # See decisions.md Decision 9.
+    # Declared here so MemorySaver checkpoints it on clarify-pause.
     tool_outputs: dict
     status: Literal[
         "extracting", "planning", "executing",

@@ -7,6 +7,8 @@ document.addEventListener('DOMContentLoaded', () => {
   let activeThreadId = null;
   let isAwaitingClarification = false;
   let selectedFiles = [];
+  let customApiKey = ''; // Held strictly in memory for this session, never stored in localStorage
+  let isServerKeyConfigured = false;
 
   // DOM Elements
   const dropZone = document.getElementById('drop-zone');
@@ -28,6 +30,93 @@ document.addEventListener('DOMContentLoaded', () => {
   const refreshTraceBtn = document.getElementById('refresh-trace-btn');
   const toggleFusedContext = document.getElementById('toggle-fused-context');
   const toggleTraceJson = document.getElementById('toggle-trace-json');
+
+  // Settings DOM Elements
+  const openSettingsBtn = document.getElementById('open-settings-btn');
+  const closeSettingsBtn = document.getElementById('close-settings-btn');
+  const settingsModal = document.getElementById('settings-modal');
+  const settingsApiKeyInput = document.getElementById('settings-api-key');
+  const toggleKeyVisibilityBtn = document.getElementById('toggle-key-visibility');
+  const saveSettingsBtn = document.getElementById('save-settings-btn');
+  const clearSettingsBtn = document.getElementById('clear-settings-btn');
+  const noKeyWarning = document.getElementById('no-key-warning');
+  const linkToSettings = document.getElementById('link-to-settings');
+
+  // ---------------------------------------------------------------------------
+  // Key & Health Management
+  // ---------------------------------------------------------------------------
+
+  async function checkServerHealth() {
+    try {
+      const res = await fetch('/health');
+      if (res.ok) {
+        const data = await res.json();
+        isServerKeyConfigured = !!data.gemini_configured;
+      }
+    } catch (e) {
+      console.warn('Could not query /health endpoint:', e);
+    }
+    updateKeyAvailabilityUI();
+  }
+
+  function updateKeyAvailabilityUI() {
+    const hasKey = customApiKey || isServerKeyConfigured;
+    if (!hasKey) {
+      noKeyWarning.classList.remove('hidden');
+      submitBtn.disabled = true;
+    } else {
+      noKeyWarning.classList.add('hidden');
+      if (!submitSpinner.classList.contains('hidden')) {
+        submitBtn.disabled = true;
+      } else {
+        submitBtn.disabled = false;
+      }
+    }
+  }
+
+  checkServerHealth();
+
+  // Settings Modal Handlers
+  openSettingsBtn.addEventListener('click', () => {
+    settingsApiKeyInput.value = customApiKey;
+    settingsModal.classList.remove('hidden');
+  });
+
+  if (linkToSettings) {
+    linkToSettings.addEventListener('click', (e) => {
+      e.preventDefault();
+      settingsApiKeyInput.value = customApiKey;
+      settingsModal.classList.remove('hidden');
+    });
+  }
+
+  closeSettingsBtn.addEventListener('click', () => {
+    settingsModal.classList.add('hidden');
+  });
+
+  toggleKeyVisibilityBtn.addEventListener('click', () => {
+    if (settingsApiKeyInput.type === 'password') {
+      settingsApiKeyInput.type = 'text';
+      toggleKeyVisibilityBtn.textContent = 'Hide';
+    } else {
+      settingsApiKeyInput.type = 'password';
+      toggleKeyVisibilityBtn.textContent = 'Show';
+    }
+  });
+
+  saveSettingsBtn.addEventListener('click', () => {
+    customApiKey = settingsApiKeyInput.value.trim();
+    settingsModal.classList.add('hidden');
+    updateKeyAvailabilityUI();
+  });
+
+  clearSettingsBtn.addEventListener('click', () => {
+    customApiKey = '';
+    settingsApiKeyInput.value = '';
+    settingsModal.classList.add('hidden');
+    updateKeyAvailabilityUI();
+  });
+
 
   // ---------------------------------------------------------------------------
   // Drag & Drop File Handlers
@@ -164,15 +253,21 @@ document.addEventListener('DOMContentLoaded', () => {
     formData.append('user_query', userQuery);
     files.forEach(file => formData.append('files', file));
 
+    const headers = {};
+    if (customApiKey) {
+      headers['X-Gemini-Api-Key'] = customApiKey;
+    }
+
     try {
       const response = await fetch('/session', {
         method: 'POST',
+        headers: headers,
         body: formData,
       });
 
       const data = await response.json();
       if (!response.ok || data.status === 'error') {
-        renderErrorMsg(data.message || 'An error occurred during execution.');
+        renderErrorMsg(data.detail || data.message || 'An error occurred during execution.');
         updateStatusPill('error', 'Error');
         return;
       }
@@ -203,15 +298,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const formData = new FormData();
     formData.append('reply', replyText);
 
+    const headers = {};
+    if (customApiKey) {
+      headers['X-Gemini-Api-Key'] = customApiKey;
+    }
+
     try {
       const response = await fetch(`/session/${activeThreadId}/reply`, {
         method: 'POST',
+        headers: headers,
         body: formData,
       });
 
       const data = await response.json();
       if (!response.ok || data.status === 'error') {
-        renderErrorMsg(data.message || 'Error resuming session.');
+        renderErrorMsg(data.detail || data.message || 'Error resuming session.');
         updateStatusPill('error', 'Error');
         return;
       }

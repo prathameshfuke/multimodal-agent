@@ -181,3 +181,23 @@ We added `test_real_graph_resume_does_not_re_extract` to `tests/test_api.py` and
 
 **Tradeoff Accepted**: Users with larger media files must split/compress them or use a higher-memory deployment tier. We intentionally document, rather than simulate, concurrent 10 MB requests because the free-tier single-worker configuration is the current operational boundary; a future multi-worker deployment must revisit this decision and add a concurrency test.
 
+---
+
+### Decision 13: Per-Session Gemini Client Construction & Secret Non-Persistence
+
+**Problem**: Supporting custom user-supplied Gemini API keys via a UI Settings panel breaks the previous assumption of a single application-global `genai.Client()` constructed at server startup. Different requests may carry different keys (or rely on the server default), so the client instance must be scoped per request/session. Furthermore, storing raw API keys in `AgentState` breaks `MemorySaver` msgpack state serialization because `genai.Client` instances are non-serializable Python objects, and storing raw key strings in checkpointed state would persist user secrets in session state history.
+
+**Options Considered**:
+1. Store raw API key strings in `AgentState` and re-construct `genai.Client` inside every node.
+2. Store `genai.Client` instances directly in `AgentState`.
+3. Pass `gemini_client` dynamically per request via LangGraph's `config["configurable"]["gemini_client"]` execution context (`RunnableConfig`), keeping `AgentState` pure and msgpack-serializable.
+
+**Choice**: Option 3 (Per-request client construction passed via `config["configurable"]`).
+
+**Why**:
+- **Security & Secret Non-Persistence**: The raw API key string is received via the `X-Gemini-Api-Key` HTTP header (or server `.env` fallback) and used immediately in-memory to instantiate a `genai.Client()`. The key is **never** written to disk, **never** written to temp upload directories, **never** logged in event logs (sanitized in `logging_utils.py`), and **never** stored in `AgentState` or `MemorySaver` checkpoints.
+- **Serialization Safety**: `AgentState` remains lightweight, clean, and 100% msgpack-serializable, preventing `MemorySaver` serialization failures during state snapshotting and clarify-pause checkpoints.
+- **Per-Session Flexibility**: Each `/session` and `/session/{thread_id}/reply` invocation resolves its own key from the incoming request header or server default, validates the key fast via a lightweight SDK ping (`count_tokens`), and passes the active client to nodes via runtime execution context.
+
+**Tradeoff Accepted**: On clarify-resume (`/reply`), the client must send the `X-Gemini-Api-Key` header again if a custom key was used for the initial session. The frontend `app.js` handles this transparently by maintaining the custom key in JS memory for the active browser session.
+
