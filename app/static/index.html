@@ -22,12 +22,8 @@
         </div>
       </div>
       <div class="header-meta">
-        <button type="button" id="open-guide-btn" class="btn btn-secondary btn-sm" aria-label="Open Setup & Deployment Guide">
-          <span class="guide-icon">&#128218;</span> Setup &amp; Deployment Guide
-        </button>
-        <button type="button" id="open-settings-btn" class="btn btn-secondary btn-sm" aria-label="Open Settings">
-          <span class="settings-icon">&#9881;</span> Settings
-        </button>
+        <a href="/guide.html" target="_blank" class="btn btn-secondary btn-sm" aria-label="Open Setup & Deployment Guide">Setup &amp; Deployment Guide</a>
+        <button type="button" id="open-settings-btn" class="btn btn-secondary btn-sm" aria-label="Open Settings">Settings</button>
         <div id="status-pill" class="status-pill status-ready">
           <span class="status-dot"></span>
           <span id="status-text">Ready</span>
@@ -151,55 +147,6 @@
       <div class="modal-footer">
         <button type="button" id="save-settings-btn" class="btn btn-primary">Save Key</button>
         <button type="button" id="clear-settings-btn" class="btn btn-secondary">Clear Key</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Setup & Deployment Guide Modal -->
-  <div id="guide-modal" class="modal-backdrop hidden">
-    <div class="modal-card modal-card-large">
-      <div class="modal-header">
-        <h3>Setup &amp; Deployment Guide</h3>
-        <button type="button" id="close-guide-btn" class="modal-close-btn">&times;</button>
-      </div>
-      <div class="modal-body modal-body-scrollable">
-        <section class="guide-section">
-          <h4>1. Environment Variables &amp; API Key Setup</h4>
-          <p>This application uses Google Gemini 2.5 Flash for planning and execution. You can supply your API key in two ways:</p>
-          <div class="guide-box">
-            <strong>Option A: Per-Session Custom Key (UI Settings)</strong>
-            <p>Click the <strong>Settings</strong> button in the header and paste your key. It is held strictly in browser memory for the active session and passed via the <code>X-Gemini-Api-Key</code> HTTP header.</p>
-          </div>
-          <div class="guide-box">
-            <strong>Option B: Server-Wide Default (Environment Variable)</strong>
-            <p>Set <code>GEMINI_API_KEY</code> in your <code>.env</code> file or cloud platform environment variables:</p>
-            <pre class="code-block">GEMINI_API_KEY=AIzaSyYourActualApiKeyHere
-PORT=8000
-TESSERACT_CMD=C:\Program Files\Tesseract-OCR\tesseract.exe  # Windows only</pre>
-          </div>
-          <p class="settings-hint">Get a free key from <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">Google AI Studio</a>.</p>
-        </section>
-
-        <section class="guide-section">
-          <h4>2. How to Deploy on Render</h4>
-          <ol class="guide-list">
-            <li>Push your code to a <strong>GitHub repository</strong>.</li>
-            <li>Go to <a href="https://dashboard.render.com/" target="_blank" rel="noopener">Render Dashboard</a> &rarr; <strong>New +</strong> &rarr; <strong>Web Service</strong>.</li>
-            <li>Connect your GitHub repository.</li>
-            <li>Set Environment to <strong>Docker</strong> (Render auto-detects <code>Dockerfile</code>).</li>
-            <li>Add Environment Variable: <code>GEMINI_API_KEY</code> = <code>your_key_here</code>.</li>
-            <li>Click <strong>Create Web Service</strong>. Render automatically builds the container, installs system OCR/audio libraries, and binds to <code>$PORT</code>.</li>
-          </ol>
-        </section>
-
-        <section class="guide-section">
-          <h4>3. Local Docker Command</h4>
-          <pre class="code-block">docker build -t multimodal-agent .
-docker run -p 8000:8000 -e GEMINI_API_KEY=your_key_here multimodal-agent</pre>
-        </section>
-      </div>
-      <div class="modal-footer">
-        <button type="button" id="dismiss-guide-btn" class="btn btn-primary">Got it</button>
       </div>
     </div>
   </div>

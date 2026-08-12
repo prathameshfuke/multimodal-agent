@@ -42,21 +42,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const noKeyWarning = document.getElementById('no-key-warning');
   const linkToSettings = document.getElementById('link-to-settings');
 
-  const openGuideBtn = document.getElementById('open-guide-btn');
-  const closeGuideBtn = document.getElementById('close-guide-btn');
-  const dismissGuideBtn = document.getElementById('dismiss-guide-btn');
-  const guideModal = document.getElementById('guide-modal');
-
-  if (openGuideBtn) {
-    openGuideBtn.addEventListener('click', () => guideModal.classList.remove('hidden'));
-  }
-  if (closeGuideBtn) {
-    closeGuideBtn.addEventListener('click', () => guideModal.classList.add('hidden'));
-  }
-  if (dismissGuideBtn) {
-    dismissGuideBtn.addEventListener('click', () => guideModal.classList.add('hidden'));
-  }
-
   // ---------------------------------------------------------------------------
   // Key & Health Management
   // ---------------------------------------------------------------------------

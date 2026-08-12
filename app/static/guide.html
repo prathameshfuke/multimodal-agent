@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Setup &amp; Deployment Guide — Multimodal Agent</title>
+  <meta name="description" content="Environment variable configuration and Render cloud deployment guide for the Multimodal Agent.">
+  <link rel="stylesheet" href="/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    .guide-page {
+      max-width: 840px;
+      margin: 0 auto;
+      padding: var(--s6) var(--s4);
+      overflow-y: auto;
+      height: 100vh;
+    }
+    .guide-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: var(--s6);
+      padding-bottom: var(--s4);
+      border-bottom: 1px solid var(--line);
+    }
+    .guide-card {
+      background: var(--bg-panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: var(--s6);
+      margin-bottom: var(--s6);
+    }
+    .guide-card h2 {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: var(--s3);
+      border-bottom: 1px solid var(--line);
+      padding-bottom: var(--s2);
+    }
+    .guide-card p {
+      color: var(--text-muted);
+      font-size: 13px;
+      line-height: 1.6;
+      margin-bottom: var(--s3);
+    }
+    .guide-callout {
+      padding: var(--s3) var(--s4);
+      border: 1px solid var(--line-strong);
+      border-left: 3px solid var(--accent);
+      border-radius: var(--radius);
+      background: var(--bg-raised);
+      margin: var(--s3) 0;
+    }
+    .guide-callout strong {
+      display: block;
+      color: var(--accent);
+      font-size: 13px;
+      margin-bottom: 4px;
+    }
+    .guide-callout p {
+      margin-bottom: 0;
+      font-size: 12px;
+    }
+    .guide-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: var(--s3) 0;
+      font: 12px/1.5 var(--font-sans);
+    }
+    .guide-table th, .guide-table td {
+      padding: 8px var(--s3);
+      border: 1px solid var(--line);
+      text-align: left;
+    }
+    .guide-table th {
+      background: var(--bg-raised);
+      color: var(--text);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      text-transform: uppercase;
+    }
+    ol.guide-steps {
+      padding-left: 20px;
+      color: var(--text-muted);
+      font-size: 13px;
+      line-height: 1.7;
+    }
+    ol.guide-steps li {
+      margin-bottom: var(--s2);
+    }
+    code {
+      font-family: var(--font-mono);
+      color: var(--text);
+      background: var(--bg-canvas);
+      padding: 2px 6px;
+      border-radius: 2px;
+      font-size: 12px;
+    }
+    a { color: var(--accent); text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="guide-page">
+    <header class="guide-header">
+      <div class="header-brand">
+        <div class="logo-mark" aria-hidden="true">MA</div>
+        <div>
+          <h1>Multimodal Agent — Setup &amp; Deployment Guide</h1>
+          <p class="subtitle">Documentation &amp; Environment Configuration</p>
+        </div>
+      </div>
+      <a href="/" class="btn btn-secondary">&larr; Back to Agent Console</a>
+    </header>
+
+    <!-- Section 1: Environment Variables -->
+    <div class="guide-card">
+      <h2>1. Environment Variables &amp; Key Supply</h2>
+      <p>This application relies on Google Gemini 2.5 Flash for planning and execution. API keys can be supplied via two pathways:</p>
+
+      <div class="guide-callout">
+        <strong>Pathway A: Per-Session Custom Key (UI Settings Panel)</strong>
+        <p>Click <strong>Settings</strong> in the main header and paste your key. It is held strictly in browser memory for the active session, passed via the <code>X-Gemini-Api-Key</code> HTTP header, and never written to disk or logs.</p>
+      </div>
+
+      <div class="guide-callout">
+        <strong>Pathway B: Server-Wide Default Environment Variable</strong>
+        <p>Set <code>GEMINI_API_KEY</code> in a local <code>.env</code> file or server environment configuration:</p>
+      </div>
+
+      <pre class="code-block"># Local .env Configuration
+GEMINI_API_KEY=AIzaSyYourActualApiKeyHere
+PORT=8000
+TESSERACT_CMD=C:\Program Files\Tesseract-OCR\tesseract.exe  # Windows local dev only</pre>
+
+      <table class="guide-table">
+        <thead>
+          <tr>
+            <th>Variable / Header</th>
+            <th>Location</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>X-Gemini-Api-Key</code></td>
+            <td>HTTP Header</td>
+            <td>Per-user key sent with <code>/session</code> and <code>/reply</code> requests. Overrides server default.</td>
+          </tr>
+          <tr>
+            <td><code>GEMINI_API_KEY</code></td>
+            <td>Server <code>.env</code></td>
+            <td>Default fallback key for the server. Required if users don't supply a custom key.</td>
+          </tr>
+          <tr>
+            <td><code>TESSERACT_CMD</code></td>
+            <td>Windows only</td>
+            <td>Path to <code>tesseract.exe</code>. Linux/Docker uses system package automatically.</td>
+          </tr>
+          <tr>
+            <td><code>PORT</code></td>
+            <td>Environment</td>
+            <td>Server port (defaults to 8000; Render injects this dynamically).</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p>Get a free Gemini API Key from <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">Google AI Studio</a>.</p>
+    </div>
+
+    <!-- Section 2: Render Deployment -->
+    <div class="guide-card">
+      <h2>2. Deploying on Render (Free Tier)</h2>
+      <p>The repository includes a production <code>Dockerfile</code> pre-configured with Linux system packages (Tesseract OCR, FFmpeg) and a pre-cached <code>faster-whisper</code> AI audio model.</p>
+
+      <ol class="guide-steps">
+        <li><strong>Push Code to GitHub</strong>: Ensure all code is committed and pushed to your repository.</li>
+        <li><strong>Create Web Service on Render</strong>: Go to <a href="https://dashboard.render.com/" target="_blank" rel="noopener">Render Dashboard</a> &rarr; <strong>New +</strong> &rarr; <strong>Web Service</strong> and select your repository.</li>
+        <li><strong>Configure Environment</strong>: Set Runtime to <strong>Docker</strong> (Render auto-detects the <code>Dockerfile</code>).</li>
+        <li><strong>Select Instance Type</strong>: Choose <strong>Free (512 MB RAM)</strong>. *(Fits our ~350 MB peak int8 Whisper + OCR memory budget per Decisions 2, 5 &amp; 12)*.</li>
+        <li><strong>Set Environment Variables</strong>: Add <code>GEMINI_API_KEY</code> under Environment Variables.</li>
+        <li><strong>Deploy</strong>: Click <strong>Create Web Service</strong>. Render automatically builds the container and binds to <code>$PORT</code>.</li>
+      </ol>
+
+      <p>Verify deployment liveness: visit <code>https://&lt;your-app&gt;.onrender.com/health</code>. Expected output: <code>{"status":"healthy","gemini_configured":true}</code>.</p>
+    </div>
+
+    <!-- Section 3: Docker Local -->
+    <div class="guide-card">
+      <h2>3. Local Docker Command</h2>
+      <p>To test the container locally using Docker:</p>
+      <pre class="code-block">docker build -t multimodal-agent .
+docker run -p 8000:8000 -e GEMINI_API_KEY=your_key_here multimodal-agent</pre>
+    </div>
+
+    <!-- Section 4: Testing -->
+    <div class="guide-card">
+      <h2>4. Testing &amp; Verification</h2>
+      <p>Run the full automated test suite using pytest:</p>
+      <pre class="code-block">python -m pytest -v --cov=app --cov-report=term-missing</pre>
+    </div>
+  </div>
+</body>
+</html>
