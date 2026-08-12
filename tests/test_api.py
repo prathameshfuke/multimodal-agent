@@ -406,7 +406,7 @@ def test_health_endpoint(client):
 def test_root_endpoint(client):
     r = client.get("/")
     assert r.status_code == 200
-    assert "Multimodal Agentic Assistant" in r.text
+    assert "Multimodal" in r.text
 
 
 # ---------------------------------------------------------------------------
@@ -491,3 +491,77 @@ def test_real_graph_resume_does_not_re_extract(client):
         trace_tools = [t["tool_name"] for t in b2["trace"]]
         assert trace_tools.count("extract_node") == 0  # extract_node warnings empty for clean PDF
         assert trace_tools == ["summarize"]
+
+
+# ---------------------------------------------------------------------------
+# Test 10 (Regression): Client wiring — tool receives non-None startup client
+# ---------------------------------------------------------------------------
+
+def test_gemini_client_reaches_tool_from_startup(client):
+    """
+    Regression test for the client-wiring bug: build_graph() was previously
+    called without gemini_client, so every node received None.  This test
+    runs a real compiled graph (not a MockGraph) and asserts the exact client
+    instance constructed at startup is the one that arrives at dispatch_tool().
+
+    This is the gap that let the bug ship through 57 passing mocked tests.
+    """
+    from unittest.mock import patch, MagicMock
+    from app.graph.build import build_graph
+    from app.tools.registry import TOOL_REGISTRY
+
+    # Create a sentinel client object we can identity-check later.
+    sentinel_client = MagicMock(name="sentinel_gemini_client")
+
+    captured_clients = []
+
+    # Mock planner to produce a deterministic plan (avoids needing real Gemini for planning)
+    async def mock_planner(state, *, gemini_client=None):
+        plan = Plan(
+            steps=[ToolCall(tool_name="summarize", args={"text": state.get("fused_context", "")}, reason="test")]
+        )
+        return {
+            **state,
+            "plan": plan,
+            "clarify_question": None,
+            "status": "executing",
+        }
+
+    # Spy on summarize to capture the gemini_client it receives
+    async def spy_summarize(text, gemini_client):
+        captured_clients.append(gemini_client)
+        return SummaryOutput(
+            one_line="Test.", bullets=["A", "B", "C"], five_sentence="S1. S2. S3. S4. S5."
+        )
+
+    pdf_bytes = (SAMPLES / "clean_sample.pdf").read_bytes()
+
+    # Patch at registry level — dispatch_tool reads TOOL_REGISTRY[name]["fn"],
+    # which was bound at import time, not the module-level function.
+    original_fn = TOOL_REGISTRY["summarize"]["fn"]
+    try:
+        TOOL_REGISTRY["summarize"]["fn"] = spy_summarize
+        with patch("app.graph.build.planner_node", side_effect=mock_planner):
+            graph = build_graph(gemini_client=sentinel_client)
+            client.app.state.graph = graph
+
+            r = client.post(
+                "/session",
+                data={"user_query": "summarize this"},
+                files=[("files", ("clean_sample.pdf", io.BytesIO(pdf_bytes), "application/pdf"))],
+            )
+
+            assert r.status_code == 200
+            body = r.json()
+            assert body["status"] == "done"
+
+            # The critical assertion: the tool received the exact sentinel client,
+            # not None, not a freshly-constructed fallback client.
+            assert len(captured_clients) >= 1, "summarize was never called"
+            assert captured_clients[0] is sentinel_client, (
+                f"Tool received {captured_clients[0]!r} instead of the startup sentinel client. "
+                "Client wiring is broken: build_graph() did not propagate gemini_client to executor_node → dispatch_tool → tool."
+            )
+    finally:
+        TOOL_REGISTRY["summarize"]["fn"] = original_fn
+

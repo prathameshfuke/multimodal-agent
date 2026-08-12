@@ -12,6 +12,11 @@ def _load_prompt(text: str) -> str:
 
 
 async def sentiment(text: str, gemini_client: Any) -> SentimentOutput:
+    """Classify text sentiment as positive, negative, or neutral.
+
+    Makes up to 2 attempts (1 Reflexion retry) before returning a
+    neutral/zero-confidence fallback so the formatter never receives None.
+    """
     prompt = _load_prompt(text)
 
     for attempt in range(2):

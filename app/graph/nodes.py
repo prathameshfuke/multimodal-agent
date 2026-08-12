@@ -19,7 +19,6 @@ from app.schemas.trace import TraceEvent
 from app.logging_utils import log_event
 from app.tools.registry import (
     dispatch_tool,
-    get_default_gemini_client,
     get_tool_schema_for_planner,
 )
 
@@ -70,7 +69,7 @@ async def _extract_one(file_ref: dict, gemini_client: Any) -> ExtractionResult |
     except Exception as e:
         return ExtractionResult(
             source_file=path,
-            modality=modality,  # type: ignore[arg-type]
+            modality=modality,
             text="",
             confidence=0.0,
             low_confidence=True,
@@ -89,6 +88,11 @@ def _summarise_result(result: ExtractionResult) -> str:
 
 
 async def extract_node(state: AgentState, *, gemini_client: Any = None) -> AgentState:
+    """Run all uploaded files through their respective extractors concurrently.
+
+    Partial failures are recorded in the trace with status='partial' and
+    low_confidence=True; the graph continues rather than aborting.
+    """
     started = time.monotonic()
     thread_id = state.get("session_id", "unknown")
     raw_files = state.get("raw_files", [])
@@ -103,7 +107,7 @@ async def extract_node(state: AgentState, *, gemini_client: Any = None) -> Agent
             continue
         good.append(result)
         if result.warnings:
-            # Partial-failure files still continue — warnings carry the signal
+            # Partial-failure files still continue — warnings carry the signal.
             trace.append(
                 TraceEvent(
                     step_index=len(trace),
@@ -115,7 +119,7 @@ async def extract_node(state: AgentState, *, gemini_client: Any = None) -> Agent
                 )
             )
 
-    output = {
+    updated_state = {
         **state,
         "extraction_results": good,
         "trace": trace,
@@ -124,11 +128,11 @@ async def extract_node(state: AgentState, *, gemini_client: Any = None) -> Agent
     log_event(
         thread_id=thread_id,
         node="extract_node",
-        status="partial" if any(result.low_confidence for result in good) else "success",
+        status="partial" if any(r.low_confidence for r in good) else "success",
         latency_ms=int((time.monotonic() - started) * 1000),
         files=len(raw_files),
     )
-    return output
+    return updated_state
 
 
 # ---------------------------------------------------------------------------
@@ -150,18 +154,20 @@ def _extract_urls(texts: list[str]) -> list[str]:
 
 
 async def fuse_node(state: AgentState) -> AgentState:
+    """Merge all extracted texts into a single fused context string and
+    collect any URLs found in the query or document bodies.
+    """
     started = time.monotonic()
     results: list[ExtractionResult] = state.get("extraction_results", [])
     user_query = state.get("user_query", "")
 
     parts = [r.text for r in results if r.text]
-    fused = "\n\n---\n\n".join(parts)
-    if user_query:
-        fused = f"User query: {user_query}\n\n---\n\n{fused}"
+    body = "\n\n---\n\n".join(parts)
+    fused = f"User query: {user_query}\n\n---\n\n{body}" if user_query else body
 
     detected_urls = _extract_urls([user_query] + [r.text for r in results])
 
-    output = {
+    updated_state = {
         **state,
         "fused_context": fused,
         "detected_urls": detected_urls,
@@ -170,7 +176,7 @@ async def fuse_node(state: AgentState) -> AgentState:
         thread_id=state.get("session_id", "unknown"), node="fuse_node", status="success",
         latency_ms=int((time.monotonic() - started) * 1000), urls=len(detected_urls),
     )
-    return output
+    return updated_state
 
 
 # ---------------------------------------------------------------------------
@@ -215,12 +221,7 @@ async def planner_node(state: AgentState, *, gemini_client: Any = None) -> Agent
                 res = gemini_client.generate_content(prompt)
                 raw = (res.text if hasattr(res, "text") else str(res)).strip()
             else:
-                from google import genai
-                client = genai.Client()
-                response = client.models.generate_content(
-                    model="gemini-2.5-flash", contents=prompt
-                )
-                raw = (response.text or "").strip()
+                raise RuntimeError("gemini_client is None — client wiring broken at startup")
 
             plan = _parse_plan(raw)
             if plan is not None:
@@ -266,53 +267,55 @@ async def planner_node(state: AgentState, *, gemini_client: Any = None) -> Agent
 
 
 async def executor_node(state: AgentState, *, gemini_client: Any = None) -> AgentState:
+    """Run each planned tool step sequentially, with 1 Reflexion retry per step.
+
+    On a first-attempt failure the error message is injected into step.args
+    as _retry_error_context so the tool can adapt on the second call.
+    A step that fails both attempts records status='partial' in the trace.
+    """
     started = time.monotonic()
     thread_id = state.get("session_id", "unknown")
     plan: Plan | None = state.get("plan")
     if not plan or not plan.steps:
-        output = {**state, "status": "done"}
         log_event(thread_id=thread_id, node="executor_node", status="success", latency_ms=0, steps=0)
-        return output
+        return {**state, "status": "done"}
 
     trace = list(state.get("trace", []))
-    # Declared AgentState field — survives MemorySaver checkpoint on clarify-pause.
+    # tool_outputs is a declared AgentState field — survives MemorySaver checkpoint.
     tool_outputs: dict = dict(state.get("tool_outputs", {}))
 
     for i, step in enumerate(plan.steps):
         t0 = time.monotonic()
         step_status = "success"
-        output: Any = None
+        step_output: Any = None
 
         for attempt in range(2):
             try:
-                output = await dispatch_tool(step.tool_name, step.args, gemini_client, thread_id=thread_id)
+                step_output = await dispatch_tool(
+                    step.tool_name, step.args, gemini_client, thread_id=thread_id
+                )
                 break
-            except Exception as e:
+            except Exception as exc:
                 if attempt == 0:
-                    # Reflexion retry: feed the error back into args context
-                    step.args["_retry_error_context"] = str(e)
+                    # Feed the error back as context for the single Reflexion retry.
+                    step.args["_retry_error_context"] = str(exc)
                 else:
                     step_status = "partial"
-                    output = f"Tool '{step.tool_name}' failed after one retry: {e}"
-
-        latency_ms = int((time.monotonic() - t0) * 1000)
-        output_summary = (
-            str(output)[:200] if output is not None else "No output"
-        )
+                    step_output = f"Tool '{step.tool_name}' failed after one retry: {exc}"
 
         trace.append(
             TraceEvent(
                 step_index=len(trace),
                 tool_name=step.tool_name,
                 input_summary=f"{step.reason} | args: {list(step.args.keys())}",
-                output_summary=output_summary,
-                latency_ms=latency_ms,
+                output_summary=str(step_output)[:200] if step_output is not None else "No output",
+                latency_ms=int((time.monotonic() - t0) * 1000),
                 status=step_status,
             )
         )
-        tool_outputs[i] = output
+        tool_outputs[i] = step_output
 
-    output = {
+    updated_state = {
         **state,
         "trace": trace,
         "tool_outputs": tool_outputs,
@@ -323,7 +326,7 @@ async def executor_node(state: AgentState, *, gemini_client: Any = None) -> Agen
         status="partial" if any(event.status == "partial" for event in trace) else "success",
         latency_ms=int((time.monotonic() - started) * 1000), steps=len(plan.steps),
     )
-    return output
+    return updated_state
 
 
 # ---------------------------------------------------------------------------
@@ -346,12 +349,16 @@ def _derive_task_type(plan: Plan | None) -> str:
 
 
 async def formatter_node(state: AgentState) -> AgentState:
+    """Shape the raw tool_outputs dict into a validated FinalOutput.
+
+    Uses the first non-None tool output. The task_type is derived from the
+    first plan step's tool_name so the UI can select the right display card.
+    """
     started = time.monotonic()
     plan: Plan | None = state.get("plan")
     tool_outputs: dict = state.get("tool_outputs", {})
     task_type = _derive_task_type(plan)
 
-    # Find the first non-None output to build FinalOutput from
     primary_output = next(
         (v for v in tool_outputs.values() if v is not None), None
     )
@@ -371,7 +378,7 @@ async def formatter_node(state: AgentState) -> AgentState:
             if isinstance(primary_output, dict)
             else primary_output
         )
-    elif primary_output is None:
+    else:
         raw_text = "No output was produced."
 
     final_output = FinalOutput(
@@ -381,7 +388,7 @@ async def formatter_node(state: AgentState) -> AgentState:
         raw_text=raw_text,
     )
 
-    output = {
+    updated_state = {
         **state,
         "final_output": final_output,
         "status": "done",
@@ -390,4 +397,4 @@ async def formatter_node(state: AgentState) -> AgentState:
         thread_id=state.get("session_id", "unknown"), node="formatter_node", status="success",
         latency_ms=int((time.monotonic() - started) * 1000), task_type=task_type,
     )
-    return output
+    return updated_state

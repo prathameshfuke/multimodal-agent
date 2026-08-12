@@ -9,6 +9,11 @@ def _load_prompt(query: str, context: str) -> str:
 
 
 async def conversational_answer(query: str, context: str, gemini_client: Any) -> str:
+    """Answer a conversational question grounded in the provided context.
+
+    Makes up to 2 attempts (1 Reflexion retry) before returning a
+    plain-text fallback string.
+    """
     prompt = _load_prompt(query, context)
 
     for attempt in range(2):
@@ -27,4 +32,3 @@ async def conversational_answer(query: str, context: str, gemini_client: Any) ->
                 return "Conversational answer failed after one retry."
 
     return "Conversational answer failed after one retry."
-

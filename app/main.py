@@ -15,18 +15,22 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from dotenv import load_dotenv
-
-load_dotenv()
-
 from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+try:
+    from google import genai
+except ImportError:
+    genai = None
+
 from app.graph.build import build_graph
 from app.logging_utils import log_event
 from app.schemas.state import AgentState, UploadedFileRef
 from app.upload_validation import validate_and_store_upload
+
+load_dotenv()
 
 TEMP_DIR = Path(os.getenv("TEMP_STORAGE_DIR", str(Path(tempfile.gettempdir()) / "multimodal_agent")))
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -35,8 +39,17 @@ STATIC_DIR = Path(__file__).resolve().parent / "static"
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     TEMP_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Construct the Gemini client exactly ONCE at startup. Every node and
+    # tool receives this same instance — no defensive per-tool reconstruction.
+    gemini_client = None
+    api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+    if api_key and genai is not None:
+        gemini_client = genai.Client(api_key=api_key)
+
     # Build once at startup; reuse across all requests (Decision 1 — graph is pure scheduler).
-    app.state.graph = build_graph()
+    app.state.graph = build_graph(gemini_client=gemini_client)
+    app.state.gemini_client = gemini_client
     yield
 
 

@@ -1,15 +1,17 @@
 import asyncio
+import os
 from typing import Any
 import pytesseract
 from PIL import Image
-from pathlib import Path
 
 from app.schemas.extraction import ExtractionResult
 
-# Auto-detect local project Tesseract binary if present in <project>/tesseract/
-_PROJECT_TESSERACT = Path(__file__).resolve().parent.parent.parent / "tesseract" / "tesseract.exe"
-if _PROJECT_TESSERACT.exists():
-    pytesseract.pytesseract.tesseract_cmd = str(_PROJECT_TESSERACT)
+# Allow TESSERACT_CMD env var to override the default system PATH lookup.
+# Windows devs: set TESSERACT_CMD=C:\path\to\tesseract.exe
+# Docker/Linux: tesseract-ocr is installed via apt-get and available on PATH.
+_tesseract_cmd = os.getenv("TESSERACT_CMD")
+if _tesseract_cmd:
+    pytesseract.pytesseract.tesseract_cmd = _tesseract_cmd
 
 
 async def _call_gemini_vision_with_retry(
@@ -18,28 +20,23 @@ async def _call_gemini_vision_with_retry(
     prompt: str = "Transcribe all visible text from this image accurately.",
 ) -> tuple[str, bool]:
     """Wraps Gemini vision API call with 1 Reflexion-style retry."""
+    if gemini_client is None:
+        return "", False
+
     for attempt in range(2):
         try:
-            if gemini_client is not None:
-                if hasattr(gemini_client, "aio") and hasattr(gemini_client.aio, "models"):
-                    response = await gemini_client.aio.models.generate_content(
-                        model="gemini-2.5-flash",
-                        contents=[image, prompt],
-                    )
-                    return (response.text or "").strip(), True
-                elif hasattr(gemini_client, "generate_content"):
-                    res = gemini_client.generate_content([image, prompt])
-                    text = res.text if hasattr(res, "text") else str(res)
-                    return text.strip(), True
-            else:
-                from google import genai
-
-                client = genai.Client()
-                response = client.models.generate_content(
+            if hasattr(gemini_client, "aio") and hasattr(gemini_client.aio, "models"):
+                response = await gemini_client.aio.models.generate_content(
                     model="gemini-2.5-flash",
                     contents=[image, prompt],
                 )
                 return (response.text or "").strip(), True
+            elif hasattr(gemini_client, "generate_content"):
+                res = gemini_client.generate_content([image, prompt])
+                text = res.text if hasattr(res, "text") else str(res)
+                return text.strip(), True
+            else:
+                return "", False
         except Exception:
             if attempt == 1:
                 return "", False

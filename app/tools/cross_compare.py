@@ -10,6 +10,11 @@ def _load_prompt(text_a: str, text_b: str) -> str:
 
 
 async def cross_compare(text_a: str, text_b: str, gemini_client: Any) -> dict:
+    """Compare two texts and return shared themes, differences, and a summary.
+
+    Makes up to 2 attempts (1 Reflexion retry) before returning a structured
+    fallback dict with empty theme/difference lists.
+    """
     prompt = _load_prompt(text_a, text_b)
 
     for attempt in range(2):

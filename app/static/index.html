@@ -3,27 +3,25 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Multimodal Agentic Assistant — Autonomous Planning & Tool Orchestration</title>
+  <title>Multimodal Agentic Assistant</title>
+  <meta name="description" content="LangGraph-orchestrated multimodal agentic assistant with autonomous planning, tool execution, and explainability trace.">
   <link rel="stylesheet" href="/style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 </head>
 <body>
   <div class="app-container">
     <!-- Header -->
     <header class="app-header">
       <div class="header-brand">
-        <div class="logo-icon" aria-hidden="true">MA</div>
+        <div class="logo-mark" aria-hidden="true">MA</div>
         <div>
-          <h1>Multimodal Agent Console</h1>
-          <p class="subtitle">ORCHESTRATION / RETRIES / MULTIMODAL ANALYSIS</p>
+          <h1>Multimodal Agent</h1>
+          <p class="subtitle">LangGraph / Gemini 2.5 Flash / Whisper ASR</p>
         </div>
       </div>
-      <div class="header-badges">
-        <span class="tech-badge">LangGraph 1.2</span>
-        <span class="tech-badge">Gemini 2.5 Flash</span>
-        <span class="tech-badge">Whisper ASR</span>
+      <div class="header-meta">
         <div id="status-pill" class="status-pill status-ready">
           <span class="status-dot"></span>
           <span id="status-text">Ready</span>
@@ -36,16 +34,15 @@
       <!-- Left Panel: Input & File Dropzone -->
       <aside class="panel input-panel">
         <div class="panel-header">
-          <h2>Input & Media</h2>
+          <h2>Input</h2>
           <span class="panel-subtitle">Upload files or type a query</span>
         </div>
 
         <form id="agent-form" class="agent-form">
           <!-- Drag & Drop Zone -->
           <div id="drop-zone" class="drop-zone">
-            <div class="drop-zone-icon" aria-hidden="true"></div>
-            <p class="drop-zone-prompt">Drag & drop files here or <span class="browse-btn">browse</span></p>
-            <p class="drop-zone-hint">Supports PDF, Images (PNG, JPG), Audio (WAV, MP3, M4A)</p>
+            <p class="drop-zone-prompt">Drop files here or <span class="browse-btn">browse</span></p>
+            <p class="drop-zone-hint">PDF, PNG, JPG, WAV, MP3, M4A</p>
             <input type="file" id="file-input" multiple accept=".pdf,.png,.jpg,.jpeg,.wav,.mp3,.m4a" class="file-input-hidden">
           </div>
 
@@ -54,69 +51,66 @@
 
           <!-- User Query Input -->
           <div class="form-group">
-            <label for="user-query-input" id="query-label">User Query / Instructions</label>
-            <textarea 
-              id="user-query-input" 
-              name="user_query" 
-              rows="4" 
-              placeholder="e.g., 'Summarize this document', 'Analyse tone', or leave empty for auto-planning..."
+            <label for="user-query-input" id="query-label">Query</label>
+            <textarea
+              id="user-query-input"
+              name="user_query"
+              rows="4"
+              placeholder="e.g., 'Summarize this document', 'Analyse tone'..."
             ></textarea>
           </div>
 
           <!-- Action Buttons -->
           <div class="form-actions">
-            <button type="button" id="clear-btn" class="btn btn-secondary">Clear All</button>
+            <button type="button" id="clear-btn" class="btn btn-secondary">Clear</button>
             <button type="submit" id="submit-btn" class="btn btn-primary">
-              <span id="submit-btn-text">Submit Request</span>
+              <span id="submit-btn-text">Submit</span>
               <span id="submit-spinner" class="spinner hidden"></span>
             </button>
           </div>
         </form>
       </aside>
 
-      <!-- Center Panel: Chat Thread & Telemetry -->
+      <!-- Center Panel: Chat Thread -->
       <section class="panel chat-panel">
         <div class="panel-header">
-          <h2>Execution Thread</h2>
+          <h2>Execution</h2>
           <span id="session-thread-label" class="panel-subtitle">No active session</span>
         </div>
 
-        <!-- Chat History Container -->
         <div id="chat-thread" class="chat-thread">
           <div class="empty-thread-placeholder">
-            <h3>Autonomous Planning Engine Ready</h3>
-            <p>Upload a document, audio clip, or image above to initiate multimodal extraction, planning, and tool execution.</p>
+            <h3>Ready</h3>
+            <p>Upload a document, audio clip, or image to start multimodal extraction, planning, and tool execution.</p>
           </div>
         </div>
       </section>
 
-      <!-- Right Panel: Inspection & Debug Telemetry -->
+      <!-- Right Panel: Inspection -->
       <aside class="panel inspection-panel">
         <div class="panel-header">
-          <h2>State Telemetry</h2>
-          <span class="panel-subtitle">Explainability & State Inspector</span>
+          <h2>Telemetry</h2>
+          <span class="panel-subtitle">State inspector</span>
         </div>
 
         <div class="inspection-content">
-          <!-- Extracted Context Card -->
           <div class="inspector-card">
             <div class="inspector-card-header" id="toggle-fused-context">
-              <span>Fused Extracted Context</span>
-              <span class="chevron">▼</span>
+              <span>Fused Context</span>
+              <span class="chevron">&#9660;</span>
             </div>
             <div id="fused-context-body" class="inspector-card-body collapsed">
               <pre id="fused-context-text" class="code-block">No extraction performed yet.</pre>
             </div>
           </div>
 
-          <!-- Session Trace Telemetry -->
           <div class="inspector-card">
             <div class="inspector-card-header" id="toggle-trace-json">
-              <span>Session Trace (GET /trace)</span>
-              <span class="chevron">▼</span>
+              <span>Trace JSON</span>
+              <span class="chevron">&#9660;</span>
             </div>
             <div id="trace-json-body" class="inspector-card-body collapsed">
-              <button id="refresh-trace-btn" class="btn btn-sm btn-secondary mb-2" disabled>Refresh Trace</button>
+              <button id="refresh-trace-btn" class="btn btn-sm btn-secondary mb-2" disabled>Refresh</button>
               <pre id="trace-json-text" class="code-block">No active session trace.</pre>
             </div>
           </div>

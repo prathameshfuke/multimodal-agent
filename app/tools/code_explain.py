@@ -9,6 +9,11 @@ def _load_prompt(text: str) -> str:
 
 
 async def code_explain(text: str, gemini_client: Any) -> str:
+    """Explain what a code snippet does, identify bugs, and state complexity.
+
+    Makes up to 2 attempts (1 Reflexion retry) before returning a
+    plain-text fallback string.
+    """
     prompt = _load_prompt(text)
 
     for attempt in range(2):

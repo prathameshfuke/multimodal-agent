@@ -1,6 +1,7 @@
 import asyncio
 from pathlib import Path
 from typing import Any
+
 from faster_whisper import WhisperModel
 
 from app.schemas.extraction import ExtractionResult
@@ -23,29 +24,29 @@ async def _call_gemini_cleanup_with_retry(
     prompt: str,
     gemini_client: Any = None,
 ) -> tuple[str, bool]:
-    """Wraps Gemini LLM audio cleanup call with 1 Reflexion-style retry."""
+    """Wrap Gemini LLM audio cleanup call with 1 Reflexion-style retry.
+
+    Returns (cleaned_text, success). If gemini_client is None or every
+    attempt fails, returns ("", False) so the caller falls back to the
+    raw ASR transcript.
+    """
+    if gemini_client is None:
+        return "", False
+
     for attempt in range(2):
         try:
-            if gemini_client is not None:
-                if hasattr(gemini_client, "aio") and hasattr(gemini_client.aio, "models"):
-                    response = await gemini_client.aio.models.generate_content(
-                        model="gemini-2.5-flash",
-                        contents=prompt,
-                    )
-                    return (response.text or "").strip(), True
-                elif hasattr(gemini_client, "generate_content"):
-                    res = gemini_client.generate_content(prompt)
-                    text = res.text if hasattr(res, "text") else str(res)
-                    return text.strip(), True
-            else:
-                from google import genai
-
-                client = genai.Client()
-                response = client.models.generate_content(
+            if hasattr(gemini_client, "aio") and hasattr(gemini_client.aio, "models"):
+                response = await gemini_client.aio.models.generate_content(
                     model="gemini-2.5-flash",
                     contents=prompt,
                 )
                 return (response.text or "").strip(), True
+            elif hasattr(gemini_client, "generate_content"):
+                res = gemini_client.generate_content(prompt)
+                text = res.text if hasattr(res, "text") else str(res)
+                return text.strip(), True
+            else:
+                return "", False
         except Exception:
             if attempt == 1:
                 return "", False
@@ -58,6 +59,13 @@ async def extract_audio(
     gemini_client: Any = None,
     model_size: str = "base",
 ) -> ExtractionResult:
+    """Transcribe an audio file with faster-whisper and optionally clean the
+    transcript with Gemini 2.5 Flash.
+
+    Confidence is derived from the average log-probability across segments.
+    The result is marked low_confidence if confidence < 0.60 or the
+    transcript is shorter than 10 characters.
+    """
     warnings: list[str] = []
 
     try:
@@ -72,13 +80,14 @@ async def extract_audio(
         duration = getattr(info, "duration", 0.0)
         warnings.append(f"audio_duration: {duration:.2f}s")
 
-        avg_prob = (
+        avg_logprob = (
             sum(seg.avg_logprob for seg in segment_list) / len(segment_list)
             if segment_list
             else -1.0
         )
+        # Map log-probability (typically -1 to 0) to a 0–1 confidence score.
         confidence = (
-            max(0.0, min(1.0, 1.0 + (avg_prob / 3.0))) if segment_list else 0.5
+            max(0.0, min(1.0, 1.0 + (avg_logprob / 3.0))) if segment_list else 0.5
         )
         is_low_confidence = confidence < 0.60 or len(raw_text) < 10
 

@@ -20,14 +20,12 @@ def _enforce_three_bullets(bullets: list[str]) -> list[str]:
     return bullets
 
 
-def _call_gemini(prompt: str, gemini_client: Any) -> str:
-    if hasattr(gemini_client, "aio"):
-        raise TypeError("Use async version for async clients")
-    res = gemini_client.generate_content(prompt)
-    return res.text if hasattr(res, "text") else str(res)
-
-
 async def summarize(text: str, gemini_client: Any) -> SummaryOutput:
+    """Summarise text into a one-line summary, three bullets, and a paragraph.
+
+    Makes up to 2 attempts (1 Reflexion retry) before returning a safe
+    fallback SummaryOutput so the formatter never receives None.
+    """
     prompt = _load_prompt(text)
 
     for attempt in range(2):
@@ -38,10 +36,9 @@ async def summarize(text: str, gemini_client: Any) -> SummaryOutput:
                 )
                 raw = (response.text or "").strip()
             else:
-                raw = _call_gemini(prompt, gemini_client)
+                res = gemini_client.generate_content(prompt)
+                raw = (res.text if hasattr(res, "text") else str(res)).strip()
 
-
-            # Strip markdown code fences if present
             if raw.startswith("```"):
                 raw = "\n".join(raw.split("\n")[1:])
                 raw = raw.rstrip("`").strip()
@@ -57,9 +54,3 @@ async def summarize(text: str, gemini_client: Any) -> SummaryOutput:
                     bullets=["...", "...", "..."],
                     five_sentence="The summarization step failed after one retry.",
                 )
-
-    return SummaryOutput(
-        one_line="Summary unavailable.",
-        bullets=["...", "...", "..."],
-        five_sentence="The summarization step failed after one retry.",
-    )
